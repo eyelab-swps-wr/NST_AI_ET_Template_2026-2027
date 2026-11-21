@@ -27,8 +27,15 @@ except ImportError as exc:
         "Or download standalone from https://www.psychopy.org/download.html\n"
     ) from exc
 
+import sys
+from pathlib import Path
+
+# Wspolny modul ../spectrum.py (ESC, kalibracja bez blokowania, strumien gaze zgodny z SDK)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 try:
     import tobii_research as tr
+    import spectrum
 except ImportError as exc:
     raise ImportError(
         "\n\nTobii Pro SDK 2.1.0 is not installed in this Python environment.\n"
@@ -67,7 +74,7 @@ def norm_to_pix(nx, ny):
 
 def connect_eyetracker():
     print("\n[AI TEMPLATE] Searching for eye tracker...")
-    trackers = tr.find_all_eyetrackers()
+    trackers = spectrum.find_all_eyetrackers()  # Spectrum first, frequency set
     if not trackers:
         print("[AI TEMPLATE] No eye tracker found.")
         return None
@@ -88,52 +95,29 @@ def connect_eyetracker():
     return et
 
 
-class GazeCollector:
-    def __init__(self, eyetracker):
-        self._et = eyetracker
-        self._last = None
-        self.active = False
+class GazeCollector(spectrum.GazeStream):
+    """Tobii Pro Spectrum gaze stream - see spectrum.GazeStream for the SDK details
+    (thread-safe buffer, SDK timestamps, invalid/NaN/stale samples rejected)."""
 
     def start(self):
-        self._et.subscribe_to(
-            tr.EYETRACKER_GAZE_DATA,
-            self._callback,
-            as_dictionary=True,
-        )
-        self.active = True
+        super().start()
         print("[AI TEMPLATE] Gaze stream started.")
 
     def stop(self):
-        if self.active:
-            self._et.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, self._callback)
-        self.active = False
+        super().stop()
         print("[AI TEMPLATE] Gaze stream stopped.")
 
-    def _callback(self, data):
-        self._last = data
-
     def get_gaze_pix(self):
-        d = self._last
-        if d is None:
+        g = self.latest_norm()  # None if no valid eye or sample older than 100 ms
+        if g is None:
             return None
-
-        xs, ys = [], []
-        if d["left_gaze_point_validity"]:
-            xs.append(d["left_gaze_point_on_display_area"][0])
-            ys.append(d["left_gaze_point_on_display_area"][1])
-        if d["right_gaze_point_validity"]:
-            xs.append(d["right_gaze_point_on_display_area"][0])
-            ys.append(d["right_gaze_point_on_display_area"][1])
-
-        if not xs:
-            return None
-
-        return norm_to_pix(sum(xs) / len(xs), sum(ys) / len(ys))
+        return norm_to_pix(g[0], g[1])
 
 
 def run_calibration(win, eyetracker):
     calibration = tr.ScreenBasedCalibration(eyetracker)
     calibration.enter_calibration_mode()
+    spectrum.guard_calibration(calibration)  # ESC -> leave calibration mode
     print("[AI TEMPLATE] Calibration mode entered.")
 
     dot = visual.Circle(win, radius=CAL_DOT_RADIUS, fillColor=CAL_ACTIVE_COLOR, lineColor=None)
@@ -175,17 +159,14 @@ def run_calibration(win, eyetracker):
                     calibration.leave_calibration_mode()
                     return False
 
-            collected = False
-            for _ in range(3):
-                if calibration.collect_data(nx, ny) in ok_statuses:
-                    collected = True
-                    break
-                core.wait(0.3)
+            # collect_data() blocks ~1-3 s; run it in the background so ESC still works
+            collected = spectrum.collect_point(
+                calibration, nx, ny, win, draw=lambda: (dot.draw(), inner.draw()))
             if not collected:
                 failed.append((nx, ny))
             core.wait(0.3)
 
-        result = calibration.compute_and_apply()
+        result = spectrum.compute_and_apply(calibration, win)
         if not failed and result.status in ok_statuses:
             success = True
             break
@@ -268,6 +249,7 @@ def main():
         units="pix",
         screen=0,
     )
+    spectrum.install_escape(win)  # ESC aborts the experiment at any moment
 
     if eyetracker is None:
         msg = visual.TextStim(

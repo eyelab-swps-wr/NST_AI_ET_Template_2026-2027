@@ -156,6 +156,8 @@ class GazeCollector:
             
             avg_x = np.mean(x_coords)
             avg_y = np.mean(y_coords)
+            if not (np.isfinite(avg_x) and np.isfinite(avg_y)):
+                return
             timestamp = gaze_data['system_time_stamp'] / 1000000.0
             
             self.gaze_data.append({
@@ -573,7 +575,7 @@ def run_experiment():
             test_data.append(1)
         
         eyetracker.subscribe_to(tr.EYETRACKER_GAZE_DATA, test_callback, as_dictionary=True)
-        core.wait(0.5)
+        core.wait(1.0)  # strumien SDK startuje ~0.3-0.5 s po subscribe_to
         eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, test_callback)
         
         if len(test_data) == 0:
@@ -597,12 +599,17 @@ def run_experiment():
         color='gray',
         allowGUI=False
     )
+    spectrum.install_escape(win)  # ESC przerywa eksperyment w kazdym momencie
     
     # Ukryj kursor
     mouse_obj = mouse.Mouse(win=win, visible=False)
     
     # Setup gaze collector
     collector = GazeCollector()
+    # Jedna subskrypcja na cala sesje (SDK potrzebuje ~0.4 s na start strumienia,
+    # wiec subskrypcja w kazdej probie gubila poczatek proby). Proby bramkuje start()/stop().
+    eyetracker.subscribe_to(tr.EYETRACKER_GAZE_DATA, collector.callback, as_dictionary=True)
+    spectrum.on_abort(lambda: eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, collector.callback))
     
     # Lista wyników
     all_results = []
@@ -898,14 +905,7 @@ def run_experiment():
             # ====================================================================
             print(f"👁 Zbieranie danych gaze...")
             
-            try:
-                eyetracker.subscribe_to(tr.EYETRACKER_GAZE_DATA, collector.callback, as_dictionary=True)
-            except Exception as e:
-                print(f"❌ Błąd subskrypcji: {e}")
-                win.close()
-                return
-            
-            collector.start()
+            collector.start()  # subskrypcja jest juz aktywna (patrz wyzej)
             
             # Zapisz start_time dla pomiaru czasu
             start_time = core.getTime()
@@ -930,19 +930,9 @@ def run_experiment():
                     print(f"✓ Użytkownik nacisnął SPACJĘ po {found_time:.2f}s")
                     break
                 if 'escape' in keys:
-                    collector.stop()
-                    try:
-                        eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, collector.callback)
-                    except:
-                        pass
-                    win.close()
-                    core.quit()
+                    spectrum.abort()
             
-            gaze_data = collector.stop()
-            try:
-                eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, collector.callback)
-            except Exception as e:
-                print(f"⚠ Ostrzeżenie przy unsubscribe: {e}")
+            gaze_data = list(collector.stop())
             
             if found_time is None:
                 found_time = SEARCH_DURATION
