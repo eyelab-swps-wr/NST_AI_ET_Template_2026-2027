@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Brief dla AI — badanie z Tobii Pro Spectrum</title>
 <style>
 :root{--ink:#172033;--muted:#5b6678;--line:#dce2ea;--paper:#fff;--bg:#f3f6fa;--accent:#3157a4;--soft:#eaf0fb;--green:#1c7355}
@@ -244,10 +247,110 @@ const fields = [...document.querySelectorAll("[data-key]")];
 const checks = [...document.querySelectorAll("[data-check]")];
 const controls = [...fields, ...checks];
 // Zachowany klucz umożliwia odczyt odpowiedzi ze starszej karty w tym samym kontekście przeglądarki.
-const storageKey = "eyeTrackingReplicateGuide_v1";
+const storageKey = "eyeTrackingReplicateGuide_tobii_yarbus_v3";
 const appId = "tobii-pro-spectrum-replication-brief";
 const legacyAppIds = ["tobii-x120-replication-brief"];
 const defaults = new Map(controls.map(el => [el, isToggle(el) ? el.checked : el.value]));
+const prefillFields = {
+  team_name: "yellow",
+  project_name: "Yarbus — wpływ instrukcji na skanowanie twarzy, v1.1",
+  study_kind: "replication",
+  study_source: "Tatler et al. (2010), “Yarbus, eye movements, and vision”, i-Perception 1:7–27. DOI: 10.1068/i0382.",
+  study_problem: "Czy zadana uczestnikowi instrukcja wpływa na sposób i obszary skanowania bodźca w postaci portretu?",
+  research_question: "Czy tempo i rozmieszczenie fiksacji różnią się między oglądaniem swobodnym a zadaniami oceny twarzy i pamięci ubioru?",
+  gap: "DO WERYFIKACJI: dokładne procedury, liczebność próby i szczegóły aparatury w oryginalnym badaniu oraz w rozszerzeniu Tatlera.",
+  goal: "Zweryfikować praktycznie, czy zadanie poznawcze zmienia wzorzec patrzenia na pojedynczy portret.",
+  hypotheses: "H1: instrukcja free_viewing generuje najbardziej zrównoważone skanowanie. H2: face_assessment zwiększa udział i liczbę fiksacji na twarzy i oczach. H3: clothing_memory zwiększa udział fiksacji na ubraniu i tułowiu.",
+  participants: "DO WERYFIKACJI: docelowa liczba pilotowanych i badanych uczestników. Rekrutacja wśród studentów dorosłych; kryteria i wyjątki ustalić przed rozpoczęciem.",
+  equipment: "Tobii Pro Spectrum. Ekran, rozdzielczość, odległość i rzeczywista częstotliwość próbkowania wymagają potwierdzenia na stanowisku.",
+  rep_q_orig: "Czy instrukcja wpływa na wzorzec ruchów oczu podczas oglądania obrazu? Do weryfikacji w oryginalnym tekście.",
+  rep_q_ours: "Czy trzy instrukcje — swobodne oglądanie, ocena twarzy i pamięć ubioru — różnicują sposób oglądania jednego portretu?",
+  rep_q_reason: "Wybrano prosty, dający się odtworzyć efekt instrukcji poznawczej.",
+  rep_cond_orig: "Oryginał Yarbus: kilka poleceń oglądania obrazu. Szczegóły do weryfikacji.",
+  rep_cond_ours: "free_viewing, face_assessment, clothing_memory.",
+  rep_cond_reason: "Warunki są krótkie, rozłączne i odpowiadają różnym AOI.",
+  rep_stim_orig: "W oryginale Yarbus: obraz/malarstwo i późniejszy portret w rozszerzeniu Tatlera — szczegóły do weryfikacji.",
+  rep_stim_ours: "Jedna licencjonowana fotografia/portret w stałej geometrii ekranu.",
+  rep_stim_reason: "Minimalizuje liczbę bodźców i ułatwia kontrolę AOI.",
+  rep_proc_orig: "Sekwencja i czas prezentacji oryginału wymagają weryfikacji.",
+  rep_proc_ours: "5 s instrukcji, 700 ms fiksacja centralna, 15 s portretu; trzy warunki.",
+  rep_proc_reason: "Krótki protokół nadaje się do pilotażu i demonstracji.",
+  rep_metric_orig: "Mierniki oryginalnego badania wymagają weryfikacji.",
+  rep_metric_ours: "Total Fixation Duration i Fixation Count; dodatkowo Time to First Fixation i Scanpath.",
+  rep_metric_reason: "Pomiary bezpośrednio opisują czas i liczbę fiksacji w oddzielnych obszarach.",
+  rep_sample_orig: "Liczba uczestników i aparatura oryginalnego badania wymagają weryfikacji.",
+  rep_sample_ours: "Warunki within-subjects; dobór i liczność końcową ustalić po pilotażu.",
+  rep_sample_reason: "Każdy uczestnik stanowi własną kontrolę; końcowa liczebność zależy od pilotażu i dostępnego czasu.",
+  design_within: true,
+  mode_both: true,
+  replication_limit: "Mała liczba próbkowanych warunków i uczestników może nie dawać mocnej inferencji; różnice geometrii ekranu, jakości trackingu i treści portretu mogą wpływać na wynik.",
+  what_seen: "Ekran instrukcji (5 s), centralny krzyż (700 ms), następnie jeden portret o stałej pozycji i proporcjach. Następnie ekran końcowy z procentowym udziałem fiksacji i krótką interpretacją.",
+  task: "Uczestnik ogląda portret zgodnie z bieżącą instrukcją: swobodnie, ocenia twarz lub zapamiętuje ubranie.",
+  stimuli: "Jedna licencjonowana fotografia/portret. Kod warunku: free_viewing, face_assessment, clothing_memory.",
+  aoi1_name: "face_eyes",
+  aoi1_area: "Twarz, z mocno zaznaczonym obszarem oczu; granice w pikselach ekranu i bez nakładania się na inne AOI.",
+  aoi1_reason: "Do oceny koncentracji patrzenia na twarzy i oczach.",
+  aoi2_name: "clothing_body",
+  aoi2_area: "Ubranie i tułów; stały obszar w geometrii portretu.",
+  aoi2_reason: "Do oceny warunku pamięci ubioru.",
+  aoi3_name: "background",
+  aoi3_area: "Pozostała część ekranu poza face_eyes i clothing_body.",
+  aoi3_reason: "Kontrola pozostałego, nieobjętego treścią przestrzeni.",
+  participant_instruction: "Pokaż instrukcję wybraną dla warunku: free_viewing — „Przyjrzyj się portretowi tak swobodnie, jak chcesz.”; face_assessment — „Oceń wiek i wygląd osoby na portrecie.”; clothing_memory — „Zapamiętaj ubranie i wygląd stroju osoby na portrecie.”",
+  session_flow: "Zgoda i informacje → instrukcja ogólna → kalibracja → jedna demonstracyjna próba → randomizowany/counterbalanced zestaw trzech warunków → ekran końcowy.",
+  trial_flow: "5 s instrukcji → 700 ms centralny krzyż → 15 s portretu → zapis końcowy próby.",
+  randomization: "Losowa kolejność trzech warunków dla każdego uczestnika lub zrównoważona counterbalancingowa kolejność; seed i numery prób zapisane w danych.",
+  trial_boundaries: "Sesja zaczyna się po udanej kalibracji. Próba zaczyna się od ekranu instrukcji i kończy po 15 s prezentacji portretu.",
+  exceptions: "W razie utraty trackingu zapisz status jakości i przerwij lub powtórz próbę według ustanowionych zasad pilotu. Nie zastępuj brakujących danych wynikami symulacji.",
+  response_method: "Bez odpowiedzi manualnej",
+  trial_timing: "Trzy warunki × trzy 15-sekundowe próby = 45 s oglądania. Dodatkowo 5 s instrukcji i 700 ms fiksacji na próbę. Czas trenowania i przerwy ustalić w pilotażu.",
+  metric1: "Total Fixation Duration",
+  metric1_def: "Suma czasów fiksacji w każdym AOI podczas 15-s prezentacji; wynik w sekundach i odsetku czasu ważnego.",
+  metric1_aoi: "face_eyes, clothing_body, background.",
+  metric1_compare: "Porównanie warunków: free_viewing vs face_assessment vs clothing_memory.",
+  metric2: "Fixation Count",
+  metric2_def: "Liczba wykrytych fiksacji przypisanych do każdego AOI; do raportowania po 15-s próbie.",
+  metric2_aoi: "face_eyes, clothing_body, background.",
+  metric2_compare: "Porównanie warunków i udziału fiksacji według AOI.",
+  additional_data: "Szczegóły odpowiedzi nie są głównym pomiarem w pilotażu. Zapisz tracking status, czas próby i liczbę ważnych próbek.",
+  fixation_method: "Surowe próbki nie są fiksacjami. Użyć dokumentowanej detekcji SDK, jeśli dostępna; w przeciwnym razie użyć jawnie oznaczonego I-VT z parametrami do ustalenia i podać go w metadanych.",
+  data_schema: "participant_id, trial_id, condition, stimulus_id, instruction, start_time, end_time, response, accuracy, tracking_status, aoI_name, fixation_duration, fixation_count.",
+  analysis_plan: "Opisowe zestawienie średnich i odsetków dla trzech AOI i trzech warunków. W pilotażu sprawdzić kierunek różnic; pełną analizę statystyczną zaplanować po ustaleniu liczności.",
+  mvp: "Start aplikacji, wybór/losowanie warunku, instrukcja 5 s, centralny krzyż 700 ms, portret 15 s, zapis próbek i zdarzeń oraz końcowy ekran.",
+  tracker_integration: "DO WERYFIKACJI: dokładny SDK/API, język i sterownik. Integracja z Tobii Pro Spectrum musi być potwierdzona na stanowisku.",
+  lab_os: "",
+  implementation_language: "",
+  runtime_versions: "Do weryfikacji.",
+  sdk_details: "Do weryfikacji: nazwa i wersja SDK/API, dokumentacja oraz działający przykład dla Tobii Pro Spectrum.",
+  sdk_verified: "",
+  display_setup: "Do potwierdzenia: rozdzielczość, rozmiar i DPI ekranu, odległość uczestnika, częstotliwość próbkowania, układ współrzędnych i granice AOI.",
+  calibration_plan: "Kalibracja przed sesją, zapis statusu/rezultatów, walidacja jakości i reakcja na utratę trackingu. Kryterium 70% ważnych próbek w aktywnym 15-s oknie.",
+  timestamp_plan: "Zapis timestampów urządzenia i aplikacji z opisem jednostek. Mapowanie startu prób i surowych próbek bez łączenia zegarów bez udowodnionej synchronizacji.",
+  experiment_export: "CSV + JSON konfiguracji",
+  quality_criteria: "Pilotowy próg jakości: co najmniej 70% ważnych próbek w aktywnej 15-sekundowej próbie. Próba z gorszą jakością jest oznaczana, nie zastępowana danymi z symulacji.",
+  risks: "Awaria SDK, utrata trackingu, rozłączenie urządzenia, zła kalibracja lub błąd geometrii AOI. Zatrzymać próbę, zapisać status i powtórzyć według protokołu.",
+  ethics: "Wybrany kod uczestnika zamiast danych osobowych. Informacja i osobna zgoda, pseudonimizacja, ograniczony dostęp i ustalone miejsce oraz termin usunięcia danych.",
+  summary_replication: "Badamy, czy trzy instrukcje — swobodne oglądanie, ocena twarzy i pamięć ubioru — zmieniają rozmieszczenie fiksacji na jednym portrecie.",
+  summary_changes: "Porównujemy trzy warunki w prostych 15-sekundowych próbach, z 5-sekundową instrukcją i 700-ms fiksacją początkową.",
+  summary_prediction: "Przewidujemy, że ocena twarzy zwiększy koncentrację w face_eyes, a pamięć ubioru — w clothing_body.",
+  summary_answer: "Prototyp odpowie na pytanie pilotażowo, jeśli zweryfikuje sprzęt, zapisze komplet danych i wyświetli wyniki według AOI.",
+  ai_next_step: "Lista braków i pytań przed implementacją",
+  ai_questions: "Potwierdzić SDK/API, OS, rozdzielczość i częstotliwość Tobii Pro Spectrum, licencję i geometrię portretu oraz dokładną liczbę pilotowych uczestników."
+};
+const prefillChecks = {
+  app1: false, app2: false, app3: false, app4: false, app5: true, app6: true,
+  app7: true, app8: false,
+  data_raw: true, data_events: true, data_metrics: true, data_config: true,
+  qa1: false, qa2: false, qa3: false, qa4: false, qa5: false, qa6: false, qa7: false, qa8: false
+};
+for (const [key, value] of Object.entries(prefillFields)) {
+  const el = fields.find(control => control.dataset.key === key);
+  if (el) defaults.set(el, isToggle(el) ? value : value);
+}
+for (const [key, value] of Object.entries(prefillChecks)) {
+  const el = checks.find(control => control.dataset.check === key);
+  if (el) defaults.set(el, value);
+}
 const retiredFields = new Map([
   ["team_roles", "string"], ["project_stage", "string"], ["replication_type", "string"],
   ["order_method", "string"], ["aoi1_constant", "string"], ["aoi2_constant", "string"],
