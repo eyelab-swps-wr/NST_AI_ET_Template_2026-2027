@@ -1,0 +1,9 @@
+﻿PACZKA: Zaufanie do twarzy (wersja HTML + most Tobii)
+
+1. Skopiuj folder TrustFaces na komputer ze stanowiskiem Tobii (Windows).
+2. Uruchom run_html_experiment.bat  (tryb Tobii)  albo  run_html_experiment.bat --sim  (test bez urzadzenia).
+   Wymaga Pythona 3.10 z tobii-research: bundla ..\PsychoPy (setup_bundle.bat z repozytorium) albo programu uv.
+3. Szczegoly i ograniczenia: README.md.
+
+STATUS: nieprzetestowane z rzeczywistym eye-trackerem; zgodnosc SDK z Tobii X120 niezweryfikowana.
+UWAGA: folder stimuli zawiera zdjecia prawdziwych osob - nie udostepniaj paczki dalej bez zgody.

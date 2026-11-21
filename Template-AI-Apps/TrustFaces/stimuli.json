@@ -1,0 +1,597 @@
+{
+  "background_level": 230,
+  "canvas_px": [
+    1536,
+    1024
+  ],
+  "stimuli": [
+    {
+      "stimulus_id": "REAL_01",
+      "category": "REAL",
+      "filename": "stimuli/REAL_01.png",
+      "original_sha256": "77458b7c88795703ebb6a5da60697862043889c67b04384b75c0ac691d635bfe",
+      "original_size_px": [
+        1600,
+        1083
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 191.1,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": null,
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          424,
+          190,
+          670,
+          670
+        ],
+        "face": [
+          424,
+          190,
+          1094,
+          860
+        ],
+        "eyes": [
+          458,
+          290,
+          1060,
+          525
+        ],
+        "lower": [
+          458,
+          558,
+          1060,
+          860
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "REAL_02",
+      "category": "REAL",
+      "filename": "stimuli/REAL_02.png",
+      "original_sha256": "481d62d03cf41b5a6e48ccc59f15407b05c7b9040568b03d4b4aa6c4ea216356",
+      "original_size_px": [
+        1600,
+        1083
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 199.25,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": null,
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          392,
+          143,
+          698,
+          698
+        ],
+        "face": [
+          392,
+          143,
+          1090,
+          841
+        ],
+        "eyes": [
+          427,
+          248,
+          1055,
+          492
+        ],
+        "lower": [
+          427,
+          527,
+          1055,
+          841
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "REAL_03",
+      "category": "REAL",
+      "filename": "stimuli/REAL_03.png",
+      "original_sha256": "0d7446573dbf18ec2cee1ec4cd5a60bc1c56f4590d7a193421d0774a4a963b2e",
+      "original_size_px": [
+        1600,
+        1083
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 194.5,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": null,
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          451,
+          201,
+          622,
+          622
+        ],
+        "face": [
+          451,
+          201,
+          1073,
+          823
+        ],
+        "eyes": [
+          482,
+          294,
+          1042,
+          512
+        ],
+        "lower": [
+          482,
+          543,
+          1042,
+          823
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "REAL_04",
+      "category": "REAL",
+      "filename": "stimuli/REAL_04.png",
+      "original_sha256": "684b8aefe760b8bc26e1951296796ba8ffb819403ddc74bf6164e301a5621237",
+      "original_size_px": [
+        1600,
+        1083
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 185.96,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": null,
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          425,
+          178,
+          679,
+          679
+        ],
+        "face": [
+          425,
+          178,
+          1104,
+          857
+        ],
+        "eyes": [
+          459,
+          280,
+          1070,
+          518
+        ],
+        "lower": [
+          459,
+          551,
+          1070,
+          857
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "REAL_05",
+      "category": "REAL",
+      "filename": "stimuli/REAL_05.png",
+      "original_sha256": "fd109388d65b783075b36b772061ca9b8d7d42b341c8b8879aa0e6d0ef9f3496",
+      "original_size_px": [
+        1600,
+        1083
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 185.28,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": null,
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          452,
+          270,
+          622,
+          622
+        ],
+        "face": [
+          452,
+          270,
+          1074,
+          892
+        ],
+        "eyes": [
+          483,
+          363,
+          1043,
+          581
+        ],
+        "lower": [
+          483,
+          612,
+          1043,
+          892
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "REAL_06",
+      "category": "REAL",
+      "filename": "stimuli/REAL_06.png",
+      "original_sha256": "dbeaf79c5aff1e98855d7373bc9fe4d3ae4a61d8ede0636ed2cafcf7dc52d3e9",
+      "original_size_px": [
+        1600,
+        1083
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 197.89,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": null,
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          433,
+          173,
+          666,
+          666
+        ],
+        "face": [
+          433,
+          173,
+          1099,
+          839
+        ],
+        "eyes": [
+          466,
+          273,
+          1066,
+          506
+        ],
+        "lower": [
+          466,
+          539,
+          1066,
+          839
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "AI_01",
+      "category": "AI",
+      "filename": "stimuli/AI_01.png",
+      "original_sha256": "8d5f9089828c0e9538ee0d1f5c55d9ae6b5a1cbc283c88167c97fbc66bcd0c4b",
+      "original_size_px": [
+        1536,
+        1024
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 188.97,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": "unknown - not provided",
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          451,
+          168,
+          634,
+          634
+        ],
+        "face": [
+          451,
+          168,
+          1085,
+          802
+        ],
+        "eyes": [
+          483,
+          263,
+          1053,
+          485
+        ],
+        "lower": [
+          483,
+          517,
+          1053,
+          802
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "AI_02",
+      "category": "AI",
+      "filename": "stimuli/AI_02.png",
+      "original_sha256": "6afa61c2e1af56f862be7fb9216432817abba1b637c3855db984ae9b439013ae",
+      "original_size_px": [
+        1536,
+        1024
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 190.04,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": "unknown - not provided",
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          449,
+          184,
+          676,
+          676
+        ],
+        "face": [
+          449,
+          184,
+          1125,
+          860
+        ],
+        "eyes": [
+          483,
+          285,
+          1091,
+          522
+        ],
+        "lower": [
+          483,
+          556,
+          1091,
+          860
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "AI_03",
+      "category": "AI",
+      "filename": "stimuli/AI_03.png",
+      "original_sha256": "72b752aef0244096a4f7c401d893a414e24061691bf876bb9b0f45836e7a6df2",
+      "original_size_px": [
+        1536,
+        1024
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 190.29,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": "unknown - not provided",
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          447,
+          193,
+          645,
+          645
+        ],
+        "face": [
+          447,
+          193,
+          1092,
+          838
+        ],
+        "eyes": [
+          479,
+          290,
+          1060,
+          516
+        ],
+        "lower": [
+          479,
+          548,
+          1060,
+          838
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "AI_04",
+      "category": "AI",
+      "filename": "stimuli/AI_04.png",
+      "original_sha256": "f1f8167c590027575fe21c040385205ce0fd4508ede7490b1fbfd9620e4f9612",
+      "original_size_px": [
+        1536,
+        1024
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 184.53,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": "unknown - not provided",
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          420,
+          156,
+          703,
+          703
+        ],
+        "face": [
+          420,
+          156,
+          1123,
+          859
+        ],
+        "eyes": [
+          455,
+          261,
+          1088,
+          508
+        ],
+        "lower": [
+          455,
+          543,
+          1088,
+          859
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "AI_05",
+      "category": "AI",
+      "filename": "stimuli/AI_05.png",
+      "original_sha256": "a6ad9fc88b1e3ca810d04c85211b14f925f9b08e6ee8c42fd24e0ede05d790e2",
+      "original_size_px": [
+        1536,
+        1024
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 192.77,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": "unknown - not provided",
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          437,
+          173,
+          658,
+          658
+        ],
+        "face": [
+          437,
+          173,
+          1095,
+          831
+        ],
+        "eyes": [
+          470,
+          272,
+          1062,
+          502
+        ],
+        "lower": [
+          470,
+          535,
+          1062,
+          831
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    },
+    {
+      "stimulus_id": "AI_06",
+      "category": "AI",
+      "filename": "stimuli/AI_06.png",
+      "original_sha256": "cc4ad73be8794ee2259df80348839eb8a6f2027b3c4db20ea386c4d50f7737e3",
+      "original_size_px": [
+        1536,
+        1024
+      ],
+      "width_px": 1536,
+      "height_px": 1024,
+      "mean_brightness": 187.41,
+      "background_rgb": [
+        230,
+        230,
+        230
+      ],
+      "source": "provided by researcher (WhatsApp JPEG; origin not documented)",
+      "license_or_consent_status": "researcher stated on 2026-11-21 that permission/consent is held; no document attached",
+      "generator_name_and_version": "unknown - not provided",
+      "mask_or_roi_coordinates": {
+        "face_box_detected": [
+          420,
+          165,
+          684,
+          684
+        ],
+        "face": [
+          420,
+          165,
+          1104,
+          849
+        ],
+        "eyes": [
+          454,
+          268,
+          1070,
+          507
+        ],
+        "lower": [
+          454,
+          541,
+          1070,
+          849
+        ],
+        "background": "everything outside the 'face' rectangle (hair, clothing, backdrop, screen outside image)"
+      },
+      "processing": "GrabCut person mask; background replaced with RGB(230,230,230); scaled to height 1024, padded with same background to 1536x1024"
+    }
+  ]
+}
