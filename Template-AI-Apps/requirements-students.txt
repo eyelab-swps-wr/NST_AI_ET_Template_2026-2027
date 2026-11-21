@@ -1,0 +1,8 @@
+# Installed into the bundled Template-AI-Apps\PsychoPy (portable 64-bit Python 3.10)
+psychopy>=2024.2.0
+tobii-research==2.1.0
+numpy
+pillow
+sounddevice
+gtts>=2.3.0
+pyttsx3>=2.90
