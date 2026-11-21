@@ -35,7 +35,7 @@ bash run_app4.sh
 ## Pedzel literowy SWPS (glos)
 
 Powiedz po angielsku **S-W-P-S** (es, double-you, pee, es) albo **I love S-W-P-S** -
-pedzel przestaje malowac plamy i zaczyna stawiac litery S W P S wzdluz sciezki wzroku
+pedzel przestaje malowac plamy i zaczyna stawiac litery S W P S w serduszkach z aureola wzdluz sciezki wzroku
 (glosnosc = wielkosc liter). Klawisz **L** wlacza/wylacza tryb literowy recznie.
 Rozpoznawanie mowy jest offline (Vosk, model `models/vosk-model-small-en-us-0.15`,
 pobierany przez `setup_bundle.bat`). Pasek statusu pokazuje `mowa: OK [ostatnio uslyszane litery]`.

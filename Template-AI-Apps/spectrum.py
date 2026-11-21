@@ -193,6 +193,174 @@ def compute_and_apply(calibration, win, draw=None):
 
 
 # ============================================================================
+# Pelna kalibracja z ekranem pozycji glowy i podgladem jakosci
+# Full calibration: head-position screen -> calibration -> result plot (R = redo)
+# ============================================================================
+CAL_POINTS_5 = [(0.5, 0.5), (0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]
+CAL_POINTS_9 = [(0.5, 0.5), (0.1, 0.1), (0.5, 0.1), (0.9, 0.1), (0.9, 0.5),
+                (0.9, 0.9), (0.5, 0.9), (0.1, 0.9), (0.1, 0.5)]
+
+
+def _n2p(win, nx, ny):
+    """Display area (0..1, (0,0)=top-left) -> PsychoPy pix (0,0)=center."""
+    w, h = win.size
+    return (nx - 0.5) * w, (0.5 - ny) * h
+
+
+def _wait_space_or_r(win, draw_fn):
+    from psychopy import event
+    event.clearEvents(eventType="keyboard")
+    while True:
+        draw_fn()
+        win.flip()
+        keys = event.getKeys(["space", "r"])
+        if keys:
+            return keys[-1]
+
+
+def show_user_position(win, eyetracker, text="Usiadz tak, aby oba punkty byly zielone i blisko srodka.\nSPACJA = dalej"):
+    """Ekran pozycji glowy (EYETRACKER_USER_POSITION_GUIDE): oczy w track boxie."""
+    from psychopy import event, visual
+    state = {}
+
+    def cb(d):
+        state["d"] = d
+
+    try:
+        eyetracker.subscribe_to(tr.EYETRACKER_USER_POSITION_GUIDE, cb, as_dictionary=True)
+    except Exception as exc:
+        print(f"[SPECTRUM] User position guide unavailable: {exc}")
+        return
+    unsub = lambda: eyetracker.unsubscribe_from(tr.EYETRACKER_USER_POSITION_GUIDE, cb)
+    on_abort(unsub)
+    w, h = win.size
+    box = visual.Rect(win, width=w * 0.4, height=h * 0.4, units="pix", lineColor="white", fillColor=None, lineWidth=3)
+    eyes = {s: visual.Circle(win, radius=22, units="pix", lineColor=None) for s in ("left", "right")}
+    info = visual.TextStim(win, text=text, units="pix", pos=(0, -h * 0.32), height=28, color="white", wrapWidth=w * 0.8)
+    dist = visual.TextStim(win, text="", units="pix", pos=(0, h * 0.28), height=26, color="white")
+    event.clearEvents(eventType="keyboard")
+    try:
+        while not event.getKeys(["space"]):
+            box.draw()
+            d = state.get("d")
+            zs = []
+            if d is not None:
+                for side in ("left", "right"):
+                    if d[f"{side}_user_position_validity"]:
+                        x, y, z = d[f"{side}_user_position"]
+                        # x mirrored so the dot moves like a mirror image of the head
+                        eyes[side].pos = ((0.5 - x) * w * 0.4, (0.5 - y) * h * 0.4)
+                        eyes[side].radius = 14 + 24 * (1.0 - min(1.0, max(0.0, z)))
+                        ok = 0.2 < x < 0.8 and 0.2 < y < 0.8 and 0.2 < z < 0.8
+                        eyes[side].fillColor = "lime" if ok else "orange"
+                        eyes[side].draw()
+                        zs.append(z)
+            if zs:
+                z = sum(zs) / len(zs)
+                dist.text = "Za blisko - odsun sie" if z < 0.25 else ("Za daleko - przysun sie" if z > 0.75 else "Odleglosc OK")
+            else:
+                dist.text = "Nie widze oczu"
+            dist.draw()
+            info.draw()
+            win.flip()
+    finally:
+        try:
+            unsub()
+        except Exception:
+            pass
+        remove_on_abort(unsub)
+
+
+def _draw_cal_result(win, result, points):
+    """Tobii-style result plot: lines from each target to left (green) / right (red) eye samples.
+    Returns mean error in px per point (None if no valid samples)."""
+    from psychopy import visual
+    errs = {}
+    for cp in (result.calibration_points if result is not None else []):
+        tx, ty = cp.position_on_display_area
+        tpx = _n2p(win, tx, ty)
+        d = []
+        for smp in cp.calibration_samples:
+            for eye, col in ((smp.left_eye, "lime"), (smp.right_eye, "red")):
+                if eye.validity == tr.VALIDITY_VALID_AND_USED:
+                    ex, ey = eye.position_on_display_area
+                    epx = _n2p(win, ex, ey)
+                    visual.Line(win, start=tpx, end=epx, units="pix", lineColor=col, lineWidth=1).draw()
+                    d.append(math.hypot(epx[0] - tpx[0], epx[1] - tpx[1]))
+        errs[(round(tx, 2), round(ty, 2))] = (sum(d) / len(d)) if d else None
+    for nx, ny in points:
+        px, py = _n2p(win, nx, ny)
+        e = errs.get((round(nx, 2), round(ny, 2)))
+        visual.Circle(win, radius=12, pos=(px, py), units="pix", lineColor="white", fillColor=None, lineWidth=2).draw()
+        label = "brak danych" if e is None else f"{e:.0f} px"
+        visual.TextStim(win, text=label, pos=(px, py - 30), units="pix", height=18,
+                        color="white" if e is not None and e < 60 else "orange").draw()
+    return errs
+
+
+def calibrate(win, eyetracker, points=CAL_POINTS_9, position_screen=True):
+    """
+    Pelna kalibracja Tobii Pro Spectrum:
+      1) ekran pozycji glowy, 2) kalibracja (punkty kurcza sie, collect_data w tle),
+      3) wykres wynikow z bledem w px dla kazdego punktu: SPACJA = akceptuj, R = powtorz.
+    ESC dziala przez caly czas (install_escape). Zwraca True gdy kalibracja zaakceptowana.
+    """
+    from psychopy import event, visual
+    if position_screen:
+        show_user_position(win, eyetracker)
+
+    dot = visual.Circle(win, radius=20, units="pix", fillColor="white", lineColor=None)
+    center = visual.Circle(win, radius=4, units="pix", fillColor="black", lineColor=None)
+    msg = visual.TextStim(win, text="", units="pix", height=28, color="white", wrapWidth=win.size[0] * 0.8)
+    w, h = win.size
+
+    while True:
+        msg.text = "KALIBRACJA\n\nPatrz na srodek kazdego punktu, az zniknie.\n\nSPACJA = start"
+        msg.pos = (0, 0)
+        if _wait_space_or_r(win, msg.draw) == "r":
+            continue
+
+        calibration = tr.ScreenBasedCalibration(eyetracker)
+        calibration.enter_calibration_mode()
+        leave = guard_calibration(calibration)
+        result = None
+        try:
+            for nx, ny in points:
+                px, py = _n2p(win, nx, ny)
+                dot.pos = center.pos = (px, py)
+                for frame in range(45):  # ~0.75 s: let the eye land on the dot
+                    dot.radius = max(8, 26 - frame * 0.4)
+                    dot.draw(); center.draw(); win.flip()
+                ok = collect_point(calibration, nx, ny, win, draw=lambda: (dot.draw(), center.draw()))
+                if not ok:
+                    print(f"[SPECTRUM] Calibration point {nx:.1f},{ny:.1f}: no data")
+            msg.text = "Obliczam kalibracje..."
+            result = compute_and_apply(calibration, win, draw=msg.draw)
+        finally:
+            try:
+                leave()
+            except Exception:
+                pass
+            remove_on_abort(leave)
+
+        status_ok = result is not None and result.status in CAL_OK_STATUSES
+        title = visual.TextStim(win, units="pix", pos=(0, h * 0.40), height=22, wrapWidth=w * 0.95,
+                                color="lime" if status_ok else "orange",
+                                text=("Kalibracja OK" if status_ok else "Kalibracja NIEUDANA") +
+                                     "   |   SPACJA = akceptuj   R = powtorz   (zielony = lewe oko, czerwony = prawe)")
+
+        def draw_result():
+            title.draw()
+            _draw_cal_result(win, result, points)
+
+        key = _wait_space_or_r(win, draw_result)
+        if key == "space":
+            print(f"[SPECTRUM] Calibration accepted (status ok: {status_ok})")
+            event.clearEvents(eventType="keyboard")
+            return status_ok
+
+
+# ============================================================================
 # Strumien gaze zgodny z SDK / SDK-correct gaze stream
 # ============================================================================
 def sdk_time_to_perf(system_time_stamp_us):

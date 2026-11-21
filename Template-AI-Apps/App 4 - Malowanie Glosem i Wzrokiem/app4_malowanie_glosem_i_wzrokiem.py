@@ -95,7 +95,7 @@ ACTIVE_SCREEN_HEIGHT = float(SCREEN_HEIGHT)
 CANVAS_W = 1280
 CANVAS_H = 720
 
-SESSION_SECONDS = 45.0
+SESSION_SECONDS = 35.0
 
 # ============================================================================
 # 3. GAZE TOOLS + CURSOR VISIBILITY
@@ -577,6 +577,88 @@ def add_letter_stamp(canvas, cx, cy, letter, size_px, color_rgb, alpha):
     region[:] = region * (1.0 - m) + target * m
 
 
+_HEART_CACHE = {}
+
+
+def _heart_letter_masks(letter, size_px):
+    """Cached masks on one padded grid (size_px = heart height), pre-combined so that a stamp is
+         out = layer * A + Halo*c_halo + Spark*c_spark + Heart*c_heart + Letter*white
+    Heart: implicit curve (x^2 + y^2 - 1)^3 - x^2 y^3 <= 0 (supersampled, smooth edges).
+    Halo ("aureola"): blurred, enlarged heart glow + star sparkles on a ring."""
+    from PIL import ImageFilter
+
+    size_px = int(max(24, min(480, round(size_px / 8.0) * 8)))
+    key = (letter, size_px)
+    if key in _HEART_CACHE:
+        return _HEART_CACHE[key]
+    pad = int(size_px * 0.55)
+    n = size_px + 2 * pad
+    ss = 2  # supersampling
+    g = np.linspace(-1.0, 1.0, n * ss, dtype=np.float32) * (n / size_px) * 1.25
+    xx, yy = np.meshgrid(g, -g)  # y up
+    yy = yy + 0.15               # optical centering of the heart
+    f = (xx ** 2 + yy ** 2 - 1.0) ** 3 - (xx ** 2) * (yy ** 3)
+    heart_img = Image.fromarray(((f <= 0) * 255).astype(np.uint8), "L").resize((n, n), Image.LANCZOS)
+    heart = np.asarray(heart_img, dtype=np.float32) / 255.0
+
+    halo_img = heart_img.filter(ImageFilter.MaxFilter(size=max(3, (size_px // 10) | 1)))
+    halo_img = halo_img.filter(ImageFilter.GaussianBlur(radius=size_px * 0.16))
+    halo = np.asarray(halo_img, dtype=np.float32) / 255.0
+    halo = np.clip(halo * 1.4, 0.0, 1.0) * (1.0 - heart * 0.85) * 0.55  # glow mostly outside
+
+    spark_canvas = np.zeros((n, n, 3), dtype=np.float32)
+    rng = random.Random(hash(key))
+    for _ in range(8):
+        a = rng.uniform(0, 2 * math.pi)
+        r = size_px * rng.uniform(0.62, 0.86)
+        add_soft_stamp(spark_canvas, n / 2 + math.cos(a) * r, n / 2 + math.sin(a) * r,
+                       rng.uniform(2.5, 2.5 + size_px * 0.035), (1.0, 1.0, 1.0), 0.85, shape_kind="star")
+    spark = spark_canvas[..., 0]
+
+    letter_mask = _letter_mask(letter, size_px * 0.52)
+    lm = np.zeros((n, n), dtype=np.float32)
+    lh, lw = letter_mask.shape
+    oy = (n - lh) // 2 + int(size_px * 0.02)
+    ox = (n - lw) // 2
+    lm[max(0, oy):oy + lh, max(0, ox):ox + lw] = letter_mask[:min(lh, n - oy), :min(lw, n - ox)]
+
+    ht = heart * 0.92
+    lt = lm * 0.97
+    keep_l = 1.0 - lt
+    masks = {
+        "A": ((1.0 - ht) * keep_l)[..., None],                 # how much of the layer survives
+        "halo": (halo * (1.0 - ht) * keep_l)[..., None],
+        "spark": (spark * (1.0 - ht) * keep_l)[..., None],
+        "heart": (ht * keep_l)[..., None],
+        "letter": lt[..., None],
+    }
+    _HEART_CACHE[key] = masks
+    return masks
+
+
+def add_heart_letter_stamp(layers, cx, cy, letter, size_px, color_rgb, hue=0.0):
+    """Letter inside a heart with a glowing halo + sparkles, stamped into every layer in `layers`."""
+    if not PIL_OK or not (np.isfinite(cx) and np.isfinite(cy) and np.isfinite(size_px)):
+        return
+    m = _heart_letter_masks(letter, size_px)
+    halo_rgb = np.array(colorsys.hsv_to_rgb((hue + 0.12) % 1.0, 0.55, 1.0), dtype=np.float32)
+    spark_rgb = np.array(colorsys.hsv_to_rgb((hue + 0.30) % 1.0, 0.30, 1.0), dtype=np.float32)
+    heart_rgb = np.array(color_rgb, dtype=np.float32)
+    add = m["halo"] * halo_rgb + m["spark"] * spark_rgb + m["heart"] * heart_rgb + m["letter"]
+    A = m["A"]
+    for canvas in layers:
+        h, w, _ = canvas.shape
+        mh, mw = A.shape[:2]
+        x0, y0 = int(cx - mw / 2), int(cy - mh / 2)
+        cx0, cy0 = max(0, x0), max(0, y0)
+        cx1, cy1 = min(w, x0 + mw), min(h, y0 + mh)
+        if cx1 <= cx0 or cy1 <= cy0:
+            continue
+        sy, sx = slice(cy0 - y0, cy1 - y0), slice(cx0 - x0, cx1 - x0)
+        region = canvas[cy0:cy1, cx0:cx1, :]
+        np.clip(region * A[sy, sx] + add[sy, sx], 0.0, 1.0, out=region)
+
+
 def add_impressionistic_splatter(canvas, cx, cy, color_rgb, strength, shape_kind="circle", texture=0.0):
     if not np.isfinite(cx) or not np.isfinite(cy):
         return
@@ -645,7 +727,7 @@ def show_intro(win):
             "Mow do mikrofonu, a barwa i puls pedzla beda sie zmieniac\n"
             "na podstawie cech dzwieku (glosnosc + widmo), nie znaczenia slow.\n"
             "Powiedz po angielsku S-W-P-S (es, double-you, pee, es)\n"
-            "albo I love S-W-P-S - pedzel zacznie malowac literami SWPS.\n\n"
+            "albo I love S-W-P-S - pedzel zacznie malowac literami SWPS w serduszkach.\n\n"
             "Sterowanie:\n"
             "L = pedzel literowy wl./wyl.\n"
             "SPACE = zakoncz obraz\n"
@@ -851,9 +933,9 @@ def run_session(win, collector):
             smooth_zcr = 0.90 * smooth_zcr + 0.10 * zcr
 
             # High mic sensitivity: low noise floor, full brush response at quiet speech.
-            rms_floor = 0.008
+            rms_floor = 0.004
             rms_eff = max(0.0, rms - rms_floor)
-            rms_drive = min(1.0, math.sqrt(rms_eff / 0.07))
+            rms_drive = min(1.0, math.sqrt(rms_eff / 0.03))
 
             pulse_phase += dt * (1.5 + 6.0 * centroid)
             pulse = 0.5 + 0.5 * math.sin(pulse_phase * 2.0 * math.pi)
@@ -873,20 +955,21 @@ def run_session(win, collector):
                 cx, cy = xy
 
                 # Bigger and more permanent-feeling blobs.
-                brush_radius = 16.0 + 92.0 * rms_drive + 18.0 * pulse + min(30.0, speed * 0.010)
+                brush_radius = 22.0 + 110.0 * rms_drive + 18.0 * pulse + min(30.0, speed * 0.010)
                 brush_alpha = max(0.12, min(0.62, 0.16 + 0.36 * rms_drive + 0.16 * pulse))
 
                 if letter_mode:
-                    # Letters S W P S along the gaze path; voice loudness sets their size.
-                    letter_size = 46.0 + 110.0 * rms_drive + 10.0 * pulse
+                    # Letters S W P S in hearts (with a halo) along the gaze path;
+                    # voice loudness sets their size.
+                    letter_size = 70.0 + 130.0 * rms_drive + 12.0 * pulse
                     moved = last_letter_xy is None or math.hypot(
-                        cx - last_letter_xy[0], cy - last_letter_xy[1]) >= 0.8 * letter_size
+                        cx - last_letter_xy[0], cy - last_letter_xy[1]) >= 0.85 * letter_size
                     if moved:
                         letter = SpellingListener.TARGET[letter_idx % len(SpellingListener.TARGET)]
                         letter_idx += 1
                         last_letter_xy = (cx, cy)
-                        for target in (canvas, recent[0], recent[1]):
-                            add_letter_stamp(target, cx, cy, letter, letter_size, rgb, 0.9)
+                        add_heart_letter_stamp((canvas, recent[0], recent[1]),
+                                               cx, cy, letter, letter_size, rgb, hue=hue)
                     blob_targets = ()
                 else:
                     blob_targets = (canvas, recent[0], recent[1])
