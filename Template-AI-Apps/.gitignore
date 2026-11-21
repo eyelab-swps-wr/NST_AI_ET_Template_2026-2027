@@ -24,3 +24,6 @@ Visual Search/temp_audio/
 # Session outputs (participant data / generated art)
 App */app*_session_*.csv
 App */app*_artwork_*.png
+
+# Vosk speech model for App 4 (downloaded by setup_bundle.bat)
+App 4 - Malowanie Glosem i Wzrokiem/models/

@@ -9,6 +9,10 @@ Artsy prototype:
 - Strong jitter compensation keeps movement fluid but stable
 
 Controls:
+- Say in English "S-W-P-S" letter by letter ("es, double-you, pee, es")
+  or "I love S-W-P-S": the brush switches from ink blots to the letters
+  S W P S (offline speech recognition: Vosk, models/ folder)
+- L: toggle letter brush manually
 - SPACE: finish artwork
 - C: clear canvas
 - S: save snapshot now
@@ -16,7 +20,9 @@ Controls:
 """
 
 import colorsys
+import json
 import math
+import queue
 import random
 import sys
 import threading
@@ -56,12 +62,23 @@ except Exception:
     sd = None
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFont
 
     PIL_OK = True
 except Exception:
     PIL_OK = False
-    Image = None
+    Image = ImageDraw = ImageFont = None
+
+try:
+    import vosk
+
+    vosk.SetLogLevel(-1)
+    VOSK_OK = True
+except Exception:
+    vosk = None
+    VOSK_OK = False
+
+VOSK_MODEL_DIR = HERE / "models" / "vosk-model-small-en-us-0.15"
 
 logging.console.setLevel(logging.ERROR)
 
@@ -225,6 +242,94 @@ def run_calibration(win, eyetracker):
 # ============================================================================
 # 4. AUDIO ANALYSIS
 # ============================================================================
+class SpellingListener:
+    """Offline English speech recognition (Vosk) limited to a tiny grammar.
+
+    Triggers (-> `triggered = True`):
+      * the letters S W P S spelled one by one ("es, double-you, pee, es"), or
+      * "I love ..." followed by at least 2 of the letters within a few seconds
+        ("I love S-W-P-S" - "I love" is easy to recognise, so the letters may be
+        partially misheard).
+    A tiny grammar makes recognition robust and fast; other speech becomes [unk].
+    """
+
+    TARGET = "SWPS"
+    GRAMMAR = ["s", "es", "w", "double you", "p", "pee", "i love", "[unk]"]
+    TOKEN_TO_LETTER = {"s": "S", "es": "S", "w": "W", "p": "P", "pee": "P"}
+    LOVE_WINDOW_S = 6.0
+
+    def __init__(self, samplerate=16000):
+        self.sr = samplerate
+        self.available = VOSK_OK and VOSK_MODEL_DIR.exists()
+        self.status = "OK" if self.available else ("brak vosk" if not VOSK_OK else "brak modelu")
+        self.heard = ""          # last recognised tokens, e.g. "SWP" or "<3SW"
+        self.triggered = False
+        self._love_t = None
+        self._love_letters = 0
+        self._q = queue.Queue(maxsize=200)
+        self._stop = threading.Event()
+        self._thread = None
+
+    def start(self):
+        if self.available and self._thread is None:
+            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread.start()
+
+    def stop(self):
+        self._stop.set()
+
+    def feed(self, x_float32):
+        """Called from the audio callback: keep it cheap, just queue int16 bytes."""
+        if not self.available:
+            return
+        pcm = (np.clip(x_float32, -1.0, 1.0) * 32767.0).astype(np.int16).tobytes()
+        try:
+            self._q.put_nowait(pcm)
+        except queue.Full:
+            pass
+
+    def _run(self):
+        try:
+            model = vosk.Model(str(VOSK_MODEL_DIR))
+            rec = vosk.KaldiRecognizer(model, self.sr, json.dumps(self.GRAMMAR))
+        except Exception as exc:
+            print(f"[APP4] Vosk init failed: {exc}")
+            self.available = False
+            self.status = "blad modelu"
+            return
+        print("[APP4] Vosk listening for S-W-P-S / I love S-W-P-S")
+        while not self._stop.is_set():
+            try:
+                pcm = self._q.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            if rec.AcceptWaveform(pcm):
+                self.handle_text(json.loads(rec.Result()).get("text", ""))
+
+    def handle_text(self, text, now=None):
+        now = time.perf_counter() if now is None else now
+        # Multi-word grammar phrases -> single tokens before splitting.
+        text = " " + text.strip() + " "
+        text = text.replace(" double you ", " w ").replace(" i love ", " <3 ")
+        tokens = text.split()
+        if not any(t in self.TOKEN_TO_LETTER or t == "<3" for t in tokens):
+            return
+        for t in tokens:
+            if t == "<3":
+                self._love_t, self._love_letters = now, 0
+                self.heard = (self.heard + "<3")[-10:]
+            elif t in self.TOKEN_TO_LETTER:
+                self.heard = (self.heard + self.TOKEN_TO_LETTER[t])[-10:]
+                if self._love_t is not None and now - self._love_t <= self.LOVE_WINDOW_S:
+                    self._love_letters += 1
+        print(f"[APP4] Heard: {text.strip()!r}  (history: {self.heard})")
+        if self.TARGET in self.heard.replace("<3", "") or self._love_letters >= 2:
+            if not self.triggered:
+                print("[APP4] S-W-P-S recognised -> letter brush ON")
+            self.triggered = True
+            self._love_t, self._love_letters = None, 0
+
+
 class VoiceAnalyzer:
     """Continuously estimates RMS + spectral centroid + ZCR from microphone input."""
 
@@ -242,11 +347,14 @@ class VoiceAnalyzer:
         self.mode = "SIM"
 
         self._sim_t = 0.0
+        self.listener = None  # optional SpellingListener fed with the same audio
 
     def _callback(self, indata, frames, callback_time, status):
         x = np.asarray(indata[:, 0], dtype=np.float32)
         if x.size == 0:
             return
+        if self.listener is not None:
+            self.listener.feed(x)
 
         x = np.nan_to_num(x, copy=False)
         rms = float(np.sqrt(np.mean(x * x) + 1e-12))
@@ -422,6 +530,53 @@ def add_soft_stamp(canvas, cx, cy, radius, color_rgb, alpha, shape_kind="circle"
     region[:] = region * (1.0 - blend) + target * blend
 
 
+_LETTER_CACHE = {}
+_LETTER_FONT_FILES = ("arialbd.ttf", "arial.ttf", "DejaVuSans-Bold.ttf")
+
+
+def _letter_mask(letter, size_px):
+    """Float32 alpha mask (0..1) with `letter` rendered at roughly size_px height."""
+    size_px = int(max(16, min(400, round(size_px / 8.0) * 8)))  # quantize -> cache hits
+    key = (letter, size_px)
+    if key in _LETTER_CACHE:
+        return _LETTER_CACHE[key]
+    font = None
+    for name in _LETTER_FONT_FILES:
+        try:
+            font = ImageFont.truetype(name, size_px)
+            break
+        except Exception:
+            continue
+    if font is None:
+        font = ImageFont.load_default()
+    pad = size_px // 4
+    img = Image.new("L", (size_px + 2 * pad, size_px + 2 * pad), 0)
+    draw = ImageDraw.Draw(img)
+    l, t, r, b = draw.textbbox((0, 0), letter, font=font)
+    draw.text(((img.width - (r - l)) / 2 - l, (img.height - (b - t)) / 2 - t), letter, fill=255, font=font)
+    mask = np.asarray(img, dtype=np.float32) / 255.0
+    _LETTER_CACHE[key] = mask
+    return mask
+
+
+def add_letter_stamp(canvas, cx, cy, letter, size_px, color_rgb, alpha):
+    """Blend a letter (centered at cx, cy; canvas row 0 = top) into the canvas."""
+    if not PIL_OK or not (np.isfinite(cx) and np.isfinite(cy) and np.isfinite(size_px)):
+        return
+    mask = _letter_mask(letter, size_px) * max(0.0, min(1.0, alpha))
+    h, w, _ = canvas.shape
+    mh, mw = mask.shape
+    x0, y0 = int(cx - mw / 2), int(cy - mh / 2)
+    cx0, cy0 = max(0, x0), max(0, y0)
+    cx1, cy1 = min(w, x0 + mw), min(h, y0 + mh)
+    if cx1 <= cx0 or cy1 <= cy0:
+        return
+    m = mask[cy0 - y0:cy1 - y0, cx0 - x0:cx1 - x0][..., None]
+    region = canvas[cy0:cy1, cx0:cx1, :]
+    target = np.array(color_rgb, dtype=np.float32)[None, None, :]
+    region[:] = region * (1.0 - m) + target * m
+
+
 def add_impressionistic_splatter(canvas, cx, cy, color_rgb, strength, shape_kind="circle", texture=0.0):
     if not np.isfinite(cx) or not np.isfinite(cy):
         return
@@ -488,8 +643,11 @@ def show_intro(win):
             "APP 4: MALOWANIE GLOSEM I WZROKIEM\n\n"
             "Patrz tam, gdzie chcesz malowac.\n"
             "Mow do mikrofonu, a barwa i puls pedzla beda sie zmieniac\n"
-            "na podstawie cech dzwieku (glosnosc + widmo), nie znaczenia slow.\n\n"
+            "na podstawie cech dzwieku (glosnosc + widmo), nie znaczenia slow.\n"
+            "Powiedz po angielsku S-W-P-S (es, double-you, pee, es)\n"
+            "albo I love S-W-P-S - pedzel zacznie malowac literami SWPS.\n\n"
             "Sterowanie:\n"
+            "L = pedzel literowy wl./wyl.\n"
             "SPACE = zakoncz obraz\n"
             "C = wyczysc plotno\n"
             "S = zapisz obraz teraz\n"
@@ -612,7 +770,13 @@ def run_session(win, collector):
 
     smoother = GazeSmoother()
     voice = VoiceAnalyzer()
+    speller = SpellingListener(samplerate=voice.sr)
+    voice.listener = speller
     voice.start()
+    speller.start()
+    letter_mode = False      # True after S-W-P-S is heard (or L key)
+    letter_idx = 0           # next letter of "SWPS" to stamp
+    last_letter_xy = None    # spacing between letters along the gaze path
 
     hue = random.random()
     pulse_phase = 0.0
@@ -655,7 +819,14 @@ def run_session(win, collector):
                     next_reset_t[i] = now_t + SNAP_WINDOW
 
             reveal_cursor_if_moved(win)
-            keys = event.getKeys(["escape", "space", "c", "s"])
+            keys = event.getKeys(["escape", "space", "c", "s", "l"])
+            if "l" in keys:
+                letter_mode = not letter_mode
+                last_letter_xy = None
+            if speller.triggered:
+                speller.triggered = False
+                letter_mode = True
+                last_letter_xy = None
             if "escape" in keys:
                 return None
             # Ignore stale SPACE keypress right after calibration/instructions.
@@ -705,7 +876,22 @@ def run_session(win, collector):
                 brush_radius = 16.0 + 92.0 * rms_drive + 18.0 * pulse + min(30.0, speed * 0.010)
                 brush_alpha = max(0.12, min(0.62, 0.16 + 0.36 * rms_drive + 0.16 * pulse))
 
-                for target in (canvas, recent[0], recent[1]):
+                if letter_mode:
+                    # Letters S W P S along the gaze path; voice loudness sets their size.
+                    letter_size = 46.0 + 110.0 * rms_drive + 10.0 * pulse
+                    moved = last_letter_xy is None or math.hypot(
+                        cx - last_letter_xy[0], cy - last_letter_xy[1]) >= 0.8 * letter_size
+                    if moved:
+                        letter = SpellingListener.TARGET[letter_idx % len(SpellingListener.TARGET)]
+                        letter_idx += 1
+                        last_letter_xy = (cx, cy)
+                        for target in (canvas, recent[0], recent[1]):
+                            add_letter_stamp(target, cx, cy, letter, letter_size, rgb, 0.9)
+                    blob_targets = ()
+                else:
+                    blob_targets = (canvas, recent[0], recent[1])
+
+                for target in blob_targets:
                     add_soft_stamp(
                         target,
                         cx,
@@ -752,7 +938,9 @@ def run_session(win, collector):
             if now_t >= status_update_t:
                 status.text = (
                     f"MIC: {voice.mode} | glosnosc={smooth_rms:.3f}  widmo={smooth_centroid:.3f}"
-                    f"  ziarnistosc={smooth_zcr:.3f} | pedzel: {brush_shape}"
+                    f"  ziarnistosc={smooth_zcr:.3f}"
+                    f" | pedzel: {'LITERY SWPS' if letter_mode else brush_shape}"
+                    f" | mowa: {speller.status} [{speller.heard}]"
                     f" | czas: {int(max(0, SESSION_SECONDS - now_t))}s"
                 )
                 status_update_t = now_t + 0.18
@@ -761,6 +949,7 @@ def run_session(win, collector):
             win.flip()
     finally:
         voice.stop()
+        speller.stop()
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     candidate = HERE / f"app4_artwork_{ts}.png"

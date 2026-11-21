@@ -20,6 +20,14 @@ del "%TEMP%\psychopy_bundle_py.tar.gz"
 echo [2/2] Instalacja PsychoPy + tobii-research do bundla ...
 "%PY_EXE%" -m pip install --no-warn-script-location -r requirements-students.txt || goto fail
 "%PY_EXE%" -c "import psychopy, tobii_research as tr; print('OK  PsychoPy', psychopy.__version__, '| Tobii SDK', tr.__version__)" || goto fail
+set "VOSK_DIR=%~dp0App 4 - Malowanie Glosem i Wzrokiem\models"
+if not exist "%VOSK_DIR%\vosk-model-small-en-us-0.15" (
+  echo Pobieranie modelu mowy Vosk dla App 4 ...
+  if not exist "%VOSK_DIR%" mkdir "%VOSK_DIR%"
+  curl.exe -L --fail -o "%TEMP%\vosk_model.zip" "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip" || goto fail
+  "%PY_EXE%" -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "%TEMP%\vosk_model.zip" "%VOSK_DIR%" || goto fail
+  del "%TEMP%\vosk_model.zip"
+)
 echo.
 echo Gotowe. Uruchamiaj aplikacje przez run_*.bat w folderach App.
 pause
