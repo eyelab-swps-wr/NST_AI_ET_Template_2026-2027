@@ -1,5 +1,7 @@
 # AI Template App - Tobii Pro Spectrum
 
+> Wersja dla **Tobii X3-120**: [`../AI Template App X120`](../AI%20Template%20App%20X120/).
+
 This template uses the official Tobii Pro SDK Python package `tobii-research`
 2.1.0, which supports the Tobii Pro Spectrum. The older SDK bundled for
 X3-120 is not used by this app.

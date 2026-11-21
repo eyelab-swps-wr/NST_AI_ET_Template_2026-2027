@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zaufanie do twarzy — badanie z eye-trackerem Tobii</title>
+<!--
+  Strona badania. Sama NIE ma dostępu do eye-trackera: łączy się z lokalnym mostem tobii_bridge.py
+  (http://127.0.0.1:8765), który odczytuje wzrok przez Tobii Pro SDK i zapisuje dane.
+  Uruchomienie: run_html_experiment.bat   (albo: python tobii_bridge.py)
+  Test bez urządzenia: run_html_experiment.bat --sim   (dane syntetyczne, tylko test)
+  STATUS: nieprzetestowane z rzeczywistym eye-trackerem.
+-->
+<style>
+:root{--bg:rgb(230,230,230);--ink:#111;--muted:#444;--accent:#2a5db0;--warn:#a04a00}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:20px/1.5 system-ui,"Segoe UI",Arial,sans-serif;overflow:hidden;cursor:default}
+body.hide-cursor,body.hide-cursor *{cursor:none!important}
+#stage{position:fixed;inset:0;background:var(--bg)}
+#stage.dark{background:#000;color:#fff}
+.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4vh 8vw;white-space:pre-line}
+.center p{max-width:46em;margin:.4em 0}
+#img{position:absolute;left:50%;top:50%;visibility:hidden;user-select:none;-webkit-user-drag:none}
+#cross{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:64px;line-height:1;display:none}
+#dot{position:absolute;border-radius:50%;display:none;transform:translate(-50%,-50%)}
+#oval{position:absolute;left:50%;top:50%;transform:translate(-50%,-55%);width:260px;height:340px;border-radius:50%;background:#737373;display:none}
+#cv{position:absolute;inset:0;display:none}
+.form{background:#f6f6f6;border:1px solid #bbb;border-radius:12px;padding:22px 26px;max-width:560px;text-align:left;font-size:16px;white-space:normal}
+.form h1{font-size:1.3rem;margin:0 0 6px}
+.form label{display:block;margin:10px 0 2px;font-weight:600}
+.form input[type=text],.form input[type=number]{width:100%;font:inherit;padding:7px;border:1px solid #999;border-radius:6px}
+.form .chk{display:flex;gap:8px;align-items:flex-start;font-weight:400;margin:6px 0}
+.form .chk input{margin-top:5px;width:18px;height:18px}
+button{font:inherit;border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:#fff;cursor:pointer;margin-top:14px}
+.banner{background:#fff3e0;border-left:4px solid var(--warn);padding:8px 12px;margin:8px 0;font-size:15px}
+.err{color:#a00;margin-top:8px;font-size:15px}
+#scale{display:none;position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);text-align:center}
+#scale .q{font-size:36px;margin-bottom:34px}
+#scale .row{display:flex;justify-content:center;gap:clamp(10px,3vw,40px)}
+#scale .box{width:72px;height:72px;border:3px solid #111;border-radius:6px;font-size:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;color:#111;padding:0;margin:0}
+#scale .box:hover{background:#cfd8ea}
+#scale .ends{display:flex;justify-content:space-between;width:min(760px,80vw);margin:18px auto 0;font-size:18px;color:var(--muted)}
+#status{position:fixed;left:10px;bottom:6px;font-size:12px;color:#777;z-index:5;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="oval"></div><img id="img" alt=""><div id="cross">+</div><div id="dot"></div><canvas id="cv"></canvas>
+  <div id="scale"><div class="q">Jak bardzo godna zaufania jest ta osoba?</div><div class="row" id="boxes"></div>
+    <div class="ends"><span>1 = całkowicie niegodna zaufania</span><span>7 = całkowicie godna zaufania</span></div></div>
+  <div class="center" id="msg"></div>
+</div>
+<div id="status"></div>
+<script>
+"use strict";
+// =============================================================================
+// PARAMETRY (zgodne z trust_faces_experiment.py i tobii_bridge.py)
+// =============================================================================
+const PRESENT_MS = 3000, CROSS_MS = 500, NEUTRAL_MS = 1000, BREAK_EVERY = 5, BREAK_MS = 30000;
+const IMG_W = 1536, IMG_H = 1024;
+const CAL9 = [[.5,.5],[.1,.1],[.5,.1],[.9,.1],[.9,.5],[.9,.9],[.5,.9],[.1,.9],[.1,.5]];
+const VAL5 = [[.5,.5],[.15,.15],[.85,.15],[.85,.85],[.15,.85]];
+const VAL_SHOW_MS = 1600, MAX_CAL_ATTEMPTS = 3;
+const INSTRUCTION = "Za chwilę zobaczysz 12 portretów.\n\nKażdy obraz będzie widoczny przez 3 sekundy. Oglądaj go swobodnie, a po zniknięciu obrazu oceń osobę.\n\nWybierz ocenę od 1 do 7, gdzie 1 oznacza osobę całkowicie niegodną zaufania, a 7 oznacza osobę całkowicie godną zaufania. Nie musisz porównywać osoby z poprzednimi portretami.\n\nNajpierw jedna próba treningowa.\n\nNaciśnij SPACJĘ, aby kontynuować.";
+const DEBRIEF = "Dziękujemy za udział.\n\nPołowa oglądanych portretów przedstawiała prawdziwe osoby, a połowa została wygenerowana przez AI. Badamy, czy oceny zaufania i sposób patrzenia na twarz zależą od tego, czy twarz jest prawdziwa. Nie podawaliśmy tego wcześniej, aby nie wpływać na Twoje spojrzenie.\n\nTwoje dane są zapisane pod kodem, bez imienia i nazwiska. Możesz poprosić o ich usunięcie.\n\nNaciśnij SPACJĘ, aby zakończyć.";
+
+const $ = id => document.getElementById(id);
+const stage = $("stage"), msg = $("msg"), img = $("img"), cross = $("cross"), dot = $("dot"), cv = $("cv"), scaleEl = $("scale"), oval = $("oval");
+let ST = null, aborted = false, finished = false, AUTO = false, frameMs = 16.7, sessionOn = false;
+const params = new URLSearchParams(location.search);
+
+// =============================================================================
+// Narzędzia
+// =============================================================================
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const raf = () => new Promise(r => requestAnimationFrame(r));
+async function api(path, body) {
+  const opt = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
+  const r = await fetch(path, opt);
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+function show(html, {dark = false} = {}) {
+  stage.classList.toggle("dark", dark);
+  msg.style.display = "flex";
+  msg.innerHTML = html;
+}
+function clear() { msg.style.display = "none"; msg.innerHTML = ""; }
+function textScreen(text, opts) { show("<p></p>", opts); msg.firstChild.textContent = text; }
+function checkAbort() { if (aborted) throw new Error("ABORTED"); }
+function waitKey(keys, {dark = false} = {}) {
+  return new Promise((resolve, reject) => {
+    if (AUTO) { setTimeout(() => resolve(keys[0]), 120); return; }
+    const h = e => { if (keys.includes(e.key.toLowerCase())) { removeEventListener("keydown", h); resolve(e.key.toLowerCase()); } };
+    addEventListener("keydown", h);
+    const t = setInterval(() => { if (aborted) { clearInterval(t); removeEventListener("keydown", h); reject(new Error("ABORTED")); } }, 100);
+  });
+}
+async function measureFrame() {
+  const d = []; let last = await raf();
+  for (let i = 0; i < 40; i++) { const t = await raf(); d.push(t - last); last = t; }
+  d.sort((a, b) => a - b); return d[Math.floor(d.length / 2)];
+}
+async function syncClock(n = 12) {                       // przesunięcie zegara: most(ms) - przeglądarka(ms)
+  let best = null;
+  for (let i = 0; i < n; i++) {
+    const t0 = performance.now(), j = await api("/api/sync", {}), t1 = performance.now();
+    const rtt = t1 - t0, off = j.bridge_ms - (t0 + t1) / 2;
+    if (best === null || rtt < best.rtt) best = {rtt, off};
+  }
+  await api("/api/offset", {offset_ms: best.off});
+  return best;
+}
+function setCursor(hidden) { document.body.classList.toggle("hide-cursor", hidden); }
+
+// =============================================================================
+// Ekran startowy
+// =============================================================================
+async function init() {
+  let st;
+  try { st = await api("/api/status"); }
+  catch (e) { show('<div class="form"><h1>Brak połączenia z mostem</h1><p>Uruchom <b>run_html_experiment.bat</b> (albo <code>python tobii_bridge.py</code>) i odśwież stronę.</p></div>'); return; }
+  ST = st;
+  AUTO = params.get("autotest") === "1" && st.mode.startsWith("SIMULATION");
+  const sim = st.mode.startsWith("SIMULATION");
+  $("status").textContent = `${st.mode} · ${st.tracker_model}`;
+  show(`<div class="form">
+    <h1>Zaufanie do twarzy</h1>
+    ${sim ? '<div class="banner"><b>TRYB SYMULACJI</b> — dane syntetyczne, bez eye-trackera. Tylko test aplikacji.</div>'
+          : `<div class="banner">Tracker: <b>${st.tracker_model}</b>${st.frequency_hz ? " · " + st.frequency_hz + " Hz" : ""}</div>`}
+    <label for="pid">Kod uczestnika (bez imienia i nazwiska)</label><input type="text" id="pid" value="P01" maxlength="32">
+    <label for="sid">Sesja</label><input type="text" id="sid" value="1" maxlength="32">
+    <label for="wcm">Szerokość obszaru obrazu [cm] (zmierz)</label><input type="number" id="wcm" value="52" step="0.1" min="10">
+    <label for="dcm">Odległość od ekranu [cm] (zmierz)</label><input type="number" id="dcm" value="65" step="1" min="20">
+    <label for="seed">Seed (puste = z kodu uczestnika)</label><input type="text" id="seed">
+    <label class="chk"><input type="checkbox" id="c1"> Pisemna zgoda uzyskana</label>
+    <label class="chk"><input type="checkbox" id="c2"> Pełnoletność potwierdzona</label>
+    <label class="chk"><input type="checkbox" id="c3"> Widzenie prawidłowe lub skorygowane</label>
+    <button id="go">Rozpocznij (pełny ekran)</button><div class="err" id="err"></div></div>`);
+  $("go").onclick = () => start().catch(e => { if (e.message !== "ABORTED") fail(e); });
+  if (AUTO) { ["c1","c2","c3"].forEach(i => $(i).checked = true); $("pid").value = "HTMLAUTO"; $("sid").value = String(Date.now()).slice(-6); setTimeout(() => $("go").click(), 300); }
+}
+function fail(e) {
+  console.error(e);
+  const el = $("err");
+  if (el) el.textContent = "Błąd: " + e.message; else textScreen("Błąd: " + e.message + "\n\nSesję przerwano.");
+}
+
+// =============================================================================
+// Start sesji
+// =============================================================================
+async function start() {
+  const sim = ST.mode.startsWith("SIMULATION");
+  const consent = {written: $("c1").checked, adult: $("c2").checked, vision: $("c3").checked};
+  if (!(consent.written && consent.adult && consent.vision)) { $("err").textContent = "Zaznacz zgodę, pełnoletność i widzenie."; return; }
+  try { await document.documentElement.requestFullscreen(); } catch (e) { if (!sim) { $("err").textContent = "Nie udało się włączyć pełnego ekranu: " + e.message; return; } }
+  await sleep(400);
+  const W = innerWidth, H = innerHeight;
+  if (!sim && (Math.abs(W - screen.width) > 2 || Math.abs(H - screen.height) > 2)) {
+    textScreen("Okno musi zajmować cały ekran trackera (pełny ekran).\nWyłącz skalowanie/zoom przeglądarki (Ctrl+0), przeciągnij okno na ekran z trackerem i odśwież stronę.");
+    return;
+  }
+  frameMs = await measureFrame();
+  const scale = Math.min(1, 0.97 * H / IMG_H, 0.97 * W / IMG_W);
+  const sess = await api("/api/session/start", {
+    participant_id: $("pid").value, session_id: $("sid").value, seed: $("seed").value, consent,
+    screen_width_px: W, screen_height_px: H, screen_width_cm: +$("wcm").value, viewing_distance_cm: +$("dcm").value,
+    image_scale: scale, device_pixel_ratio: devicePixelRatio, autotest: AUTO, fullscreen: !!document.fullscreenElement,
+    user_agent: navigator.userAgent});
+  sessionOn = true;
+  document.addEventListener("fullscreenchange", () => { if (sessionOn && !finished && !sim && !document.fullscreenElement) doAbort("fullscreen_exit"); });
+  addEventListener("keydown", e => { if (e.key === "Escape" && sessionOn && !finished) doAbort("esc"); });
+  addEventListener("pagehide", () => { if (sessionOn && !finished) navigator.sendBeacon("/api/session/abort", new Blob([JSON.stringify({reason: "pagehide"})], {type: "application/json"})); });
+  img.style.width = IMG_W * scale + "px"; img.style.height = IMG_H * scale + "px";
+  img.style.marginLeft = -IMG_W * scale / 2 + "px"; img.style.marginTop = -IMG_H * scale / 2 + "px";
+  await preload(sess.order.map(o => o.stimulus_id));
+  setCursor(true);
+  try { await runSession(sess); }
+  catch (e) { if (e.message !== "ABORTED") { console.error(e); try { await api("/api/session/abort", {reason: String(e.message)}); } catch (_) {} setCursor(false); textScreen("Błąd: " + e.message + "\n\nSesję przerwano. Zapisane próby pozostają w folderze data/."); } }
+}
+function doAbort(reason) {
+  if (aborted) return;
+  aborted = true; sessionOn = false;
+  api("/api/session/abort", {reason}).catch(() => {});
+  setCursor(false); scaleEl.style.display = "none"; img.style.visibility = "hidden"; cross.style.display = dot.style.display = oval.style.display = cv.style.display = "none";
+  textScreen("Sesja przerwana (" + (reason === "esc" ? "ESC" : "wyjście z pełnego ekranu") + ").\n\nZapisane próby pozostają w folderze data/.");
+}
+const IMGS = {};
+async function preload(ids) {
+  await Promise.all(ids.map(async id => { const i = new Image(); i.src = `/stimuli/${id}.png`; await i.decode(); IMGS[id] = i.src; }));
+}
+
+// =============================================================================
+// Kalibracja i walidacja
+// =============================================================================
+function cvInit() { cv.width = innerWidth; cv.height = innerHeight; cv.style.display = "block"; return cv.getContext("2d"); }
+function pos(nx, ny) { return [nx * innerWidth, ny * innerHeight]; }
+function placeDot(nx, ny, r) {
+  const [x, y] = pos(nx, ny);
+  dot.style.cssText = `display:block;left:${x}px;top:${y}px;width:${2 * r}px;height:${2 * r}px;background:#fff`;
+  dot.innerHTML = '<div style="position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#000"></div>';
+}
+async function calibrate(sim) {
+  let recal = 0, status = "NOT_RUN", meanDeg = null;
+  if (sim) { await api("/api/gaze/start", {}); await api("/api/calibration", {status: "SIMULATION_NOT_APPLICABLE", mean_error_deg: null, recalibration_flag: 0}); return; }
+  for (let attempt = 1; attempt <= MAX_CAL_ATTEMPTS; attempt++) {
+    await api("/api/gaze/stop", {});
+    textScreen("KALIBRACJA\n\nPatrz na środek każdego punktu, aż zniknie.\n\nSPACJA = start", {dark: true});
+    await waitKey([" "]); clear();
+    await api("/api/cal/enter", {});
+    let res;
+    try {
+      for (const [nx, ny] of CAL9) {
+        const t0 = performance.now();
+        while (performance.now() - t0 < 750) { checkAbort(); placeDot(nx, ny, Math.max(8, 26 - (performance.now() - t0) / 750 * 18)); await raf(); }
+        let busy = true, ok;
+        const p = api("/api/cal/collect", {x: nx, y: ny}).then(j => { ok = j.ok; busy = false; });
+        while (busy) { checkAbort(); await raf(); }
+        await p;
+      }
+      dot.style.display = "none";
+      textScreen("Obliczam kalibrację…", {dark: true});
+      res = await api("/api/cal/compute", {});
+    } finally { dot.style.display = "none"; await api("/api/cal/leave", {}).catch(() => {}); }
+    // wykres jakości: linie cel -> próbki
+    clear();
+    const ctx = cvInit();
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cv.width, cv.height);
+    for (const p of res.points) {
+      const [tx, ty] = pos(p.x, p.y);
+      ctx.strokeStyle = "#4f4"; ctx.lineWidth = 1;
+      for (const s of p.samples) { const [sx, sy] = pos(s[0], s[1]); ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(sx, sy); ctx.stroke(); }
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(tx, ty, 12, 0, 6.3); ctx.stroke();
+    }
+    ctx.fillStyle = res.ok ? "#4f4" : "#fa4"; ctx.font = "22px system-ui"; ctx.textAlign = "center";
+    ctx.fillText((res.ok ? "Kalibracja OK" : "Kalibracja NIEUDANA") + "   |   SPACJA = walidacja   R = powtórz", cv.width / 2, 40);
+    const k = await waitKey([" ", "r"]);
+    cv.style.display = "none";
+    if (k === "r") { recal = 1; attempt--; continue; }
+    // walidacja
+    await api("/api/gaze/start", {});
+    await sync_();
+    const errs = await validate();
+    await api("/api/gaze/stop", {});
+    const valid = errs.filter(e => e !== null);
+    meanDeg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+    const passed = res.ok && valid.length === VAL5.length && meanDeg <= ST.validation.mean_max_deg && Math.max(...valid) <= ST.validation.point_max_deg;
+    if (passed) { status = "CALIBRATED_VALIDATED"; break; }
+    status = res.ok ? "VALIDATION_FAILED" : "CALIBRATION_FAILED"; recal = 1;
+    const txt = valid.length ? `Walidacja: błąd średni ${meanDeg.toFixed(2)}° (próg ${ST.validation.mean_max_deg}°), maks. ${Math.max(...valid).toFixed(2)}° (próg ${ST.validation.point_max_deg}°).` : "Walidacja: brak danych.";
+    if (attempt < MAX_CAL_ATTEMPTS) {
+      textScreen(txt + "\n\nR = powtórz kalibrację   C = kontynuuj mimo to (próby zostaną oznaczone)", {dark: true});
+      if (await waitKey(["r", "c"]) === "c") break;
+    } else { textScreen(txt + "\n\nOsiągnięto limit prób. Dane zostaną oznaczone jako niewiarygodne.\nSPACJA = kontynuuj", {dark: true}); await waitKey([" "]); }
+  }
+  await api("/api/gaze/start", {});
+  await api("/api/calibration", {status, mean_error_deg: meanDeg, recalibration_flag: recal});
+  stage.classList.remove("dark");
+}
+const sync_ = () => syncClock(12);
+async function validate() {
+  textScreen("WALIDACJA\n\nPatrz na kropkę, aż zniknie.\n\nSPACJA = start", {dark: true}); await waitKey([" "]); clear();
+  const order = VAL5.slice().sort(() => Math.random() - .5), out = {};
+  for (const [nx, ny] of order) {
+    const t0 = performance.now(); placeDot(nx, ny, 14);
+    while (performance.now() - t0 < VAL_SHOW_MS) { checkAbort(); await raf(); }
+    const t1 = performance.now(); dot.style.display = "none";
+    const j = await api("/api/val/window", {x: nx, y: ny, t_on_ms: t0, t_off_ms: t1});
+    out[nx + "," + ny] = j.error_deg;
+  }
+  return VAL5.map(([x, y]) => out[x + "," + y]);
+}
+
+// =============================================================================
+// Próba
+// =============================================================================
+async function showFor(ms) {     // pokazuje obraz ms milisekund; zwraca {onset, offset} w ms przeglądarki (znaczniki klatek)
+  let onset, offset;
+  await new Promise(res => requestAnimationFrame(ts => { img.style.visibility = "visible"; onset = ts; res(); }));
+  while (true) {
+    const ts = await raf(); checkAbort();
+    if (ts - onset >= ms - frameMs / 2) { img.style.visibility = "hidden"; offset = ts; break; }
+  }
+  return {onset, offset};
+}
+async function crossFor(ms) { cross.style.display = "block"; await sleep(ms); cross.style.display = "none"; }
+function rate() {
+  return new Promise((resolve, reject) => {
+    const boxes = $("boxes"); boxes.innerHTML = "";
+    const t0 = performance.now();
+    const done = v => { scaleEl.style.display = "none"; removeEventListener("keydown", kh); clearInterval(chk); resolve({rating: v, rt: performance.now() - t0}); };
+    for (let i = 1; i <= 7; i++) { const b = document.createElement("button"); b.className = "box"; b.textContent = i; b.onclick = () => done(i); boxes.appendChild(b); }
+    const kh = e => { if (/^[1-7]$/.test(e.key)) done(+e.key); };
+    addEventListener("keydown", kh);
+    const chk = setInterval(() => { if (aborted) { clearInterval(chk); removeEventListener("keydown", kh); reject(new Error("ABORTED")); } }, 100);
+    setCursor(false); scaleEl.style.display = "block";
+    if (AUTO) setTimeout(() => done(1 + Math.floor(Math.random() * 7)), 200);
+  }).finally(() => setCursor(true));
+}
+
+async function runSession(sess) {
+  await calibrate(ST.mode.startsWith("SIMULATION"));
+  textScreen(INSTRUCTION); await waitKey([" "]); clear();
+  // --- trening: schematyczny owal (nie twarz z zestawu) ---
+  await sync_(); await crossFor(CROSS_MS);
+  oval.style.display = "block"; await sleep(PRESENT_MS); oval.style.display = "none";
+  await rate();
+  textScreen("To była próba treningowa — jej wyniki nie są zapisywane.\n\nNaciśnij SPACJĘ, aby rozpocząć badanie."); await waitKey([" "]); clear();
+  // --- próby główne ---
+  const order = sess.order;
+  for (let i = 0; i < order.length; i++) {
+    checkAbort();
+    const o = order[i];
+    img.src = IMGS[o.stimulus_id]; await img.decode();
+    await sync_();                                   // bieżące przesunięcie zegara (odświeżane przed każdą próbą)
+    await crossFor(CROSS_MS);
+    const t = await showFor(PRESENT_MS);
+    const r = await rate();
+    await api("/api/trial/finish", {trial_order: i + 1, stimulus_id: o.stimulus_id, rating: r.rating, rt_ms: r.rt,
+      onset_ms: t.onset, offset_ms: t.offset, frame_ms: frameMs});
+    await sleep(NEUTRAL_MS);
+    if ((i + 1) % BREAK_EVERY === 0 && i + 1 < order.length) await breakScreen();
+  }
+  textScreen("Jak się czujesz po badaniu?\n\n1 = bardzo niekomfortowo ... 5 = zupełnie komfortowo\n\n(naciśnij 1–5)");
+  const comfort = await waitKey(["1", "2", "3", "4", "5"]);
+  textScreen(DEBRIEF); await waitKey([" "]);
+  const fin = await api("/api/session/finish", {comfort: +comfort});
+  finished = true; sessionOn = false; setCursor(false);
+  textScreen("Zakończono.\n\n" + fin.report);
+  document.title = "ZAKONCZONO " + fin.dir;
+  msg.dataset.done = fin.dir;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+async function breakScreen() {
+  const end = performance.now() + (AUTO ? 1000 : BREAK_MS);
+  while (performance.now() < end) { checkAbort(); textScreen(`Krótka przerwa.\n\nZa ${Math.ceil((end - performance.now()) / 1000)} s zaczniemy kolejną część.`); await sleep(250); }
+  textScreen("Naciśnij SPACJĘ, gdy będziesz gotowy/a."); await waitKey([" "]); clear();
+}
+init();
+</script>
+</body>
+</html>
