@@ -69,7 +69,7 @@ GORILLA_PERIOD = 4.0
 GORILLA_AMP_X = 0.07
 GORILLA_AMP_Y = 0.055
 GORILLA_RADIUS = 5
-GORILLA_COLOR = [-0.80, -0.80, -0.80]   # barely lighter than the black background
+GORILLA_COLOR = [-0.85, -0.85, -0.85]   # barely lighter than the black background
 GORILLA_MARGIN = 90                     # px around the path counted as "looking at gorilla"
 GORILLA_SEEN_DWELL = 0.25               # s of cumulative gaze dwell to count as seen
 
