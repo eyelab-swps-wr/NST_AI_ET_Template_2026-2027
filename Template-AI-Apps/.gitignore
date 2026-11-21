@@ -1,0 +1,29 @@
+PsychoPy/
+
+# Python cache and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Windows noise
+desktop.ini
+Thumbs.db
+
+# VS Code local settings
+.vscode/
+
+# Experiment outputs
+Visual Search/debug_log_*.txt
+Visual Search/results_*.csv
+Visual Search/temp_audio/
+
+# Common local artifacts
+*.log
+
+# Session outputs (participant data / generated art)
+App */app*_session_*.csv
+App */app*_artwork_*.png
+
+# Vosk speech model for App 4 (downloaded by setup_bundle.bat)
+App 4 - Malowanie Glosem i Wzrokiem/models/
