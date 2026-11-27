@@ -21,13 +21,16 @@ from pathlib import Path
 import numpy as np
 
 # ============================================================================
-# 0. KONFIGURACJA TOBII PRO SPECTRUM
+# 0. KONFIGURACJA TOBII
 # ============================================================================
-# Tobii Pro Spectrum: tobii_research (SDK 2.1.0) is installed in the bundled
-# ..\PsychoPy python; shared helper spectrum.py lives in the parent folder.
 HERE = Path(__file__).resolve().parent
-if str(HERE.parent) not in sys.path:
-    sys.path.insert(0, str(HERE.parent))
+SDK_PATH = HERE.parent / "x3-120 SDK" / "64"
+
+if not SDK_PATH.exists():
+    raise FileNotFoundError(f"Nie znaleziono SDK Tobii: {SDK_PATH}")
+sdk_str = str(SDK_PATH)
+if sdk_str not in sys.path:
+    sys.path.append(sdk_str)
 
 # ============================================================================
 # 1. IMPORTY
@@ -38,8 +41,6 @@ except ImportError as exc:
     raise ImportError("Brak PsychoPy. Zainstaluj: pip install psychopy") from exc
 
 import tobii_research as tr
-
-import spectrum
 
 logging.console.setLevel(logging.ERROR)
 
@@ -95,22 +96,53 @@ def reveal_cursor_if_moved(win, threshold=0.0):
         CURSOR_REVEALED = True
 
 
-class GazeCollector(spectrum.GazeStream):
-    """Strumien gaze Tobii Pro Spectrum (logika SDK we wspolnym ../spectrum.py)."""
-
+class GazeCollector:
     def __init__(self, eyetracker, win=None):
-        super().__init__(eyetracker)
+        self._et = eyetracker
         self._win = win
+        self._last = None
+        self.active = False
+
+    def start(self):
+        self._et.subscribe_to(
+            tr.EYETRACKER_GAZE_DATA,
+            self._callback,
+            as_dictionary=True,
+        )
+        self.active = True
+
+    def stop(self):
+        if self.active:
+            self._et.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, self._callback)
+        self.active = False
+
+    def _callback(self, data):
+        self._last = data
 
     def get_gaze_pix(self):
-        g = self.latest_norm()  # None gdy brak waznych oczu lub probka starsza niz 100 ms
-        if g is None:
+        d = self._last
+        if d is None:
             return None
-        return norm_to_pix(g[0], g[1])
+
+        l_valid = d["left_gaze_point_validity"]
+        r_valid = d["right_gaze_point_validity"]
+        xs, ys = [], []
+
+        if l_valid:
+            xs.append(d["left_gaze_point_on_display_area"][0])
+            ys.append(d["left_gaze_point_on_display_area"][1])
+        if r_valid:
+            xs.append(d["right_gaze_point_on_display_area"][0])
+            ys.append(d["right_gaze_point_on_display_area"][1])
+
+        if not xs:
+            return None
+
+        return norm_to_pix(sum(xs) / len(xs), sum(ys) / len(ys))
 
 
 def connect_eyetracker():
-    trackery = spectrum.find_all_eyetrackers()
+    trackery = tr.find_all_eyetrackers()
     if not trackery:
         return None
 
@@ -125,7 +157,6 @@ def connect_eyetracker():
 def run_calibration(win, eyetracker):
     calibration = tr.ScreenBasedCalibration(eyetracker)
     calibration.enter_calibration_mode()
-    spectrum.guard_calibration(calibration)  # ESC -> wyjscie z trybu kalibracji
 
     points = [(0.5, 0.5), (0.1, 0.1), (0.9, 0.1), (0.9, 0.9), (0.1, 0.9)]
     dot = visual.Circle(win, radius=20, fillColor="white", lineColor=None)
@@ -168,8 +199,12 @@ def run_calibration(win, eyetracker):
                     calibration.leave_calibration_mode()
                     return False
 
-            collected = spectrum.collect_point(
-                calibration, nx, ny, win, draw=lambda: (dot.draw(), center.draw()))
+            collected = False
+            for _ in range(3):
+                if calibration.collect_data(nx, ny) in ok_statuses:
+                    collected = True
+                    break
+                core.wait(0.3)
             if not collected:
                 failed.append((nx, ny))
 
@@ -181,7 +216,7 @@ def run_calibration(win, eyetracker):
             core.wait(0.2)
             dot.fillColor = "white"
 
-        result = spectrum.compute_and_apply(calibration, win)
+        result = calibration.compute_and_apply()
         if not failed and result.status in ok_statuses:
             success = True
             break
@@ -938,7 +973,6 @@ def main():
         color="black",
         units="pix",
     )
-    spectrum.install_escape(win)  # ESC przerywa eksperyment w kazdym momencie
     init_hidden_cursor(win)
 
     if eyetracker is None:

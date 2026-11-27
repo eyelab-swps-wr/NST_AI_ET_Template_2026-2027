@@ -1,2 +1,1 @@
 psychopy>=2024.1.0
-tobii-research==2.1.0

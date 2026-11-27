@@ -1,14 +1,15 @@
 @echo off
-rem Uruchamia aplikacje bundlowanym Pythonem PsychoPy (Template-AI-Apps\PsychoPy)
+REM Visual Search Experiment Launcher
 cd /d "%~dp0"
-set "PYTHONUTF8=1"
-set "PYTHON_EXE=%~dp0..\PsychoPy\python.exe"
-if defined PSYCHOPY_PYTHON set "PYTHON_EXE=%PSYCHOPY_PYTHON%"
-if not exist "%PYTHON_EXE%" (
-  echo Brak bundlowanego Pythona: %PYTHON_EXE%
-  echo Uruchom najpierw ..\setup_bundle.bat
-  pause
-  exit /b 1
+echo Starting Visual Search experiment...
+if exist "..\PsychoPy\python.exe" (
+	"..\PsychoPy\python.exe" visual_search_experiment.py
+) else (
+	where py >nul 2>nul
+	if %errorlevel%==0 (
+		py -3 visual_search_experiment.py
+	) else (
+		python visual_search_experiment.py
+	)
 )
-"%PYTHON_EXE%" visual_search_experiment.py
 pause

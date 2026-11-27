@@ -24,13 +24,14 @@ from datetime import datetime
 from pathlib import Path
 
 # ============================================================================
-# 0. TOBII PRO SPECTRUM SETUP
+# 0. TOBII SDK SETUP
 # ============================================================================
-# Tobii Pro Spectrum: tobii_research (SDK 2.1.0) is installed in the bundled
-# ..\PsychoPy python; shared helper spectrum.py lives in the parent folder.
 HERE = Path(__file__).resolve().parent
-if str(HERE.parent) not in sys.path:
-    sys.path.insert(0, str(HERE.parent))
+SDK_PATH = HERE.parent / "x3-120 SDK" / "64"
+if SDK_PATH.exists():
+    sdk_str = str(SDK_PATH)
+    if sdk_str not in sys.path:
+        sys.path.append(sdk_str)
 
 # ============================================================================
 # 1. IMPORTS
@@ -41,7 +42,6 @@ logging.console.setLevel(logging.ERROR)
 
 try:
     import tobii_research as tr
-    import spectrum
     TOBII_OK = True
 except Exception:
     tr = None
@@ -69,7 +69,7 @@ GORILLA_PERIOD = 4.0
 GORILLA_AMP_X = 0.07
 GORILLA_AMP_Y = 0.055
 GORILLA_RADIUS = 5
-GORILLA_COLOR = [-0.85, -0.85, -0.85]   # barely lighter than the black background
+GORILLA_COLOR = [-0.80, -0.80, -0.80]   # barely lighter than the black background
 GORILLA_MARGIN = 90                     # px around the path counted as "looking at gorilla"
 GORILLA_SEEN_DWELL = 0.25               # s of cumulative gaze dwell to count as seen
 
@@ -132,8 +132,7 @@ def make_saccade_targets(n):
 # 4. GAZE SOURCES
 # ============================================================================
 class TrackerGaze:
-    """Tobii gaze stream; samples are (perf_counter time, x_pix, y_pix).
-    Czas probki = system_time_stamp z SDK przeliczony na perf_counter (nie czas callbacku)."""
+    """Tobii gaze stream; samples are (perf_counter time, x_pix, y_pix)."""
 
     def __init__(self, eyetracker):
         self._et = eyetracker
@@ -143,7 +142,6 @@ class TrackerGaze:
     def start(self):
         self._et.subscribe_to(tr.EYETRACKER_GAZE_DATA, self._callback, as_dictionary=True)
         self.active = True
-        spectrum.on_abort(self.stop)
 
     def stop(self):
         if self.active:
@@ -151,11 +149,20 @@ class TrackerGaze:
         self.active = False
 
     def _callback(self, d):
-        g = spectrum.binocular_norm(d)  # wazne oczy, bez NaN
-        if g is None:
+        xs, ys = [], []
+        if d["left_gaze_point_validity"]:
+            xs.append(d["left_gaze_point_on_display_area"][0])
+            ys.append(d["left_gaze_point_on_display_area"][1])
+        if d["right_gaze_point_validity"]:
+            xs.append(d["right_gaze_point_on_display_area"][0])
+            ys.append(d["right_gaze_point_on_display_area"][1])
+        if not xs:
             return
-        px, py = norm_to_pix(g[0], g[1])
-        self.samples.append((spectrum.sdk_time_to_perf(d["system_time_stamp"]), px, py))
+        nx, ny = sum(xs) / len(xs), sum(ys) / len(ys)
+        if not (math.isfinite(nx) and math.isfinite(ny)):
+            return
+        px, py = norm_to_pix(nx, ny)
+        self.samples.append((time.perf_counter(), px, py))
 
     def poll(self):
         pass
@@ -183,7 +190,7 @@ def connect_eyetracker():
     if not TOBII_OK:
         return None
     try:
-        trackers = spectrum.find_all_eyetrackers()
+        trackers = tr.find_all_eyetrackers()
     except Exception as exc:
         print(f"[APP5] Tracker search failed: {exc}")
         return None
@@ -207,7 +214,6 @@ def run_calibration(win, eyetracker):
     """Returns True (ok), False (failed) or None (escape)."""
     calibration = tr.ScreenBasedCalibration(eyetracker)
     calibration.enter_calibration_mode()
-    spectrum.guard_calibration(calibration)  # ESC -> wyjscie z trybu kalibracji
 
     ok_statuses = (
         tr.CALIBRATION_STATUS_SUCCESS,
@@ -234,8 +240,12 @@ def run_calibration(win, eyetracker):
                     if "escape" in event.getKeys(["escape"]):
                         return None
 
-                collected = spectrum.collect_point(
-                    calibration, nx, ny, win, draw=lambda: (dot.draw(), center.draw()))
+                collected = False
+                for _ in range(3):
+                    if calibration.collect_data(nx, ny) in ok_statuses:
+                        collected = True
+                        break
+                    core.wait(0.3)
                 if not collected:
                     failed.append((nx, ny))
 
@@ -247,7 +257,7 @@ def run_calibration(win, eyetracker):
                 core.wait(0.2)
                 dot.fillColor = "white"
 
-            result = spectrum.compute_and_apply(calibration, win)
+            result = calibration.compute_and_apply()
             if not failed and result.status in ok_statuses:
                 success = True
                 break
@@ -552,8 +562,6 @@ def main():
         size=(1920, 1080), units="pix", fullscr=FULLSCREEN,
         color=[-1, -1, -1], waitBlanking=True,
     )
-    if TOBII_OK:
-        spectrum.install_escape(win)  # ESC przerywa eksperyment w kazdym momencie
     Screen.update(win)
     win.mouseVisible = simulated
 

@@ -29,7 +29,7 @@ Twoja rola zmienia się w zależności od etapu:
 
 ## Kontekst techniczny
 
-Aplikacje są napisane w Pythonie z użyciem PsychoPy i Tobii Pro SDK 2.1.0 (Tobii Pro Spectrum, wspolny modul spectrum.py, bundlowany Python w PsychoPy).
+Aplikacje są napisane w Pythonie z użyciem PsychoPy i Tobii SDK (X3-120).
 
 Tryby działania:
 - `DEV_MODE = True` → myszka symuluje wzrok. Używany na laptopach studentów.

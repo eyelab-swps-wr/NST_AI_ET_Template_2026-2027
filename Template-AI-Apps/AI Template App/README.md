@@ -1,35 +1,29 @@
-# AI Template App - Tobii Pro Spectrum
+# AI Template App
 
-This template uses the official Tobii Pro SDK Python package `tobii-research`
-2.1.0, which supports the Tobii Pro Spectrum. The older SDK bundled for
-X3-120 is not used by this app.
+## Windows
 
-## Setup on Windows
+1. Install PsychoPy, or install Python 3 and make sure it is available through
+   the `py` launcher or `python` on `PATH`.
+2. From `Template-AI-Apps`, run `install_deps.bat`.
+3. Run `run_app.bat` in this folder.
 
-1. Use the app's bundled PsychoPy Python or the shared PsychoPy Python. It
-   must be 64-bit Python 3.10. Install Tobii Pro Eye Tracker Manager.
-2. Install the app dependencies into that same bundled environment. For the
-   existing shared layout:
+The installer and launcher use the same interpreter, in this order:
 
-   ```powershell
-   ..\PsychoPy\python.exe -m pip install -r requirements.txt
-   ```
+1. `PSYCHOPY_PYTHON`, if set to an existing interpreter path.
+2. `Template-AI-Apps\PsychoPy\python.exe`.
+3. `Template-AI-Apps\.venv\Scripts\python.exe`.
+4. The standard PsychoPy locations under Program Files or the user's local
+   Programs folder.
+5. The Python 3 launcher (`py -3`), then `python` on `PATH` (excluding the
+   Microsoft Store execution alias).
 
-   For an app-local runtime, use its `python.exe` path (for example,
-   `.\PsychoPy\python.exe` or `.\python.exe`). For a shared runtime elsewhere,
-   set `PSYCHOPY_PYTHON` to its full path, then use it to install dependencies
-   and launch the app:
+If PsychoPy is installed elsewhere, set `PSYCHOPY_PYTHON` to its `python.exe`
+path before running either batch file. For example, in Command Prompt:
 
-   ```bat
-   set "PSYCHOPY_PYTHON=C:\path\to\PsychoPy\python.exe"
-   "%PSYCHOPY_PYTHON%" -m pip install -r requirements.txt
-   run_app.bat
-   ```
+```bat
+set PSYCHOPY_PYTHON=C:\path\to\PsychoPy\python.exe
+```
 
-3. Connect the Pro Spectrum, then run `run_app.bat`. On this workstation it
-   also checks the shared runtime at
-   `%USERPROFILE%\Desktop\ST_AI_ET_Template_2026-2027\Template-AI-Apps\PsychoPy\python.exe`.
-   It does not use a system Python installation.
-
-The Tobii SDK is distributed under Tobii's license and is installed through
-the official `tobii-research` package; it is not copied into this template.
+The app also needs the Tobii SDK files in the sibling `x3-120 SDK\64` folder.
+The launcher does not connect to an eye tracker unless the app is run on a
+compatible workstation with the required hardware and SDK.
