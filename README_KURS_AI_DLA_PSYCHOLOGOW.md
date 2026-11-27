@@ -28,8 +28,8 @@ Podczas zajęć każda grupa wybiera jedno z badań (wybory mogą się powtarza�
 
 ## Środowisko techniczne
 
-- System: **Windows**, stacja robocza z eye-trackerem **Tobii X120** podłączonym lokalnie.
-- Oprogramowanie eye-trackingowe: **Tobii SDK**.
+- System: **Windows**, stacja robocza z eye-trackerem **Tobii Pro Spectrum** podłączonym lokalnie.
+- Oprogramowanie eye-trackingowe: **Tobii Pro SDK 2.1.0** (`tobii-research`).
 - Framework eksperymentu: **PsychoPy** (biblioteka lokalna, bez instalacji online).
 - Cały kod Python trzymany lokalnie w folderze projektu (patrz [experiment_code.py](experiment_code.py), [config.txt](config.txt)).
 - Aplikacja uruchamiana lokalnie plikiem [run_experiment.bat](run_experiment.bat) na dedykowanej stacji roboczej.
@@ -73,7 +73,7 @@ Agent w trybie ASK pomaga grupie sformułować krótkie (kilkuzdaniowe) odpowied
 
 1. Pomóc grupie streścić wybrane badanie na podstawie PDF z folderu `badania/` — bez wymyślania faktów spoza artykułu.
 2. Pomóc uzupełnić tabelę pytań badawczych zwięzłymi odpowiedziami (kilka zdań na pole).
-3. Zaproponować **jedną, konkretną zmianę** pozwalającą uprościć badanie do przeprowadzenia na Tobii X120 w PsychoPy w czasie zajęć, wraz z krótkim uzasadnieniem.
+3. Zaproponować **jedną, konkretną zmianę** pozwalającą uprościć badanie do przeprowadzenia na Tobii Pro Spectrum w PsychoPy w czasie zajęć, wraz z krótkim uzasadnieniem.
 4. Nie modyfikować kodu eksperymentu bez wyraźnej prośby grupy (tryb ASK = doradzanie i wyjaśnianie, nie automatyczne wdrażanie).
 5. Wspierać rolę IT przy problemach z kalibracją, konfiguracją (`config.txt`) i uruchomieniem (`run_experiment.bat`), odwołując się do [README_CONFIG.md](README_CONFIG.md).
 

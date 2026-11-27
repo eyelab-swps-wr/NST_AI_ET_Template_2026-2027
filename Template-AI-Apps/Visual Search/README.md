@@ -2,6 +2,10 @@
 
 Demonstracja różnicy między **Pop-out Search** a **Conjunction Search** z śledzeniem ruchu oczu.
 
+Tryb sprzętowy jest przygotowany dla Tobii Pro Spectrum i oficjalnego Tobii
+Pro SDK `tobii-research==2.1.0` w środowisku PsychoPy. Kalibracja i strumień
+gaze korzystają ze wspólnego modułu `../spectrum.py`.
+
 ## 🎯 Cel eksperymentu
 
 Pokazać studentom różnicę między:
@@ -113,8 +117,9 @@ TARGET_DETECTION_RADIUS = 80  # Jak blisko = "znaleziony"
 - Zrób kalibrację
 
 **Nie zbiera danych gaze:**
-- Problem z `as_dictionary=True` (już naprawiony w kodzie)
-- Sprawdź czy SDK jest w `../x3-120 SDK/64/`
+- Sprawdź, czy Tobii Pro Spectrum jest widoczny w Tobii Pro Eye Tracker Manager.
+- Uruchom aplikację w środowisku PsychoPy przygotowanym przez `setup_bundle.bat`.
+- Sprawdź komunikaty o połączeniu z Tobii Pro SDK.
 
 **Zawieszanie się:**
 - Wszystkie obiekty visual są tworzone raz na początku

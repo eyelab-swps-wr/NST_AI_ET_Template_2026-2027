@@ -40,19 +40,13 @@ except ImportError:
 # ============================================================================
 # SDK PATH SETUP - MUST BE BEFORE TOBII IMPORT!
 # ============================================================================
-HERE = Path(__file__).parent.parent
-X3_SDK_PATH = HERE / "x3-120 SDK" / "64"
-
-if X3_SDK_PATH.exists():
-    sdk_str = str(X3_SDK_PATH.resolve())
-    if sdk_str not in sys.path:
-        sys.path.append(sdk_str)
-        print(f"✓ Added X3-120 SDK to path: {sdk_str}")
-else:
-    print(f"⚠ SDK not found in: {X3_SDK_PATH}")
+HERE = Path(__file__).resolve().parent.parent  # Template-AI-Apps
+if str(HERE) not in sys.path:
+    sys.path.insert(0, str(HERE))  # spectrum.py
 
 # NOW import tobii_research and PsychoPy
 import tobii_research as tr
+import spectrum
 from psychopy import visual, core, event, logging
 from psychopy.hardware import mouse
 
@@ -90,11 +84,12 @@ SCREEN_HEIGHT = 1080
 # Target detection - jak blisko trzeba patrzeć
 TARGET_DETECTION_RADIUS = 120  # Piksele (zwiększone z 80)
 
-# Poprawność odpowiedzi - jak długo przed SPACE trzeba patrzeć na target
-CORRECT_RESPONSE_WINDOW = 0.8  # Sekundy przed naciśnięciem SPACE (zwiększone z 0.5)
+# Poprawność odpowiedzi: w tym oknie przed naciśnięciem SPACE wzrok musi być
+# na targecie (<= TARGET_DETECTION_RADIUS). Inaczej SPACE = FALSE_ALARM.
+CORRECT_RESPONSE_WINDOW = 0.8  # Sekundy przed naciśnięciem SPACE
 
-# Poprawność odpowiedzi - jak długo przed SPACE trzeba patrzeć na target
-CORRECT_RESPONSE_WINDOW = 0.5  # Sekundy przed naciśnięciem SPACE
+# Kalibracja Tobii Pro Spectrum na starcie (9 punktów, podgląd jakości, R = powtórz)
+RUN_CALIBRATION = True
 
 # Dostępne kolory i kształty
 COLORS = ['red', 'green', 'blue', 'yellow', 'orange', 'purple']
@@ -119,7 +114,7 @@ COLOR_MAP = {
 def find_eyetracker():
     """Znajdź i skonfiguruj eye tracker"""
     print("\n🔍 Szukam eye trackera...")
-    eyetrackers = tr.find_all_eyetrackers()
+    eyetrackers = spectrum.find_all_eyetrackers()
     
     if len(eyetrackers) == 0:
         print("❌ Nie znaleziono eye trackera!")
@@ -138,12 +133,14 @@ class GazeCollector:
     """Zbiera dane z eye trackera"""
     def __init__(self):
         self.gaze_data = []
+        self.n_total = 0
         self.collecting = False
     
     def callback(self, gaze_data):
-        """Callback dla danych gaze"""
+        """Callback dla danych gaze (watek SDK). timestamp = system_time_stamp [s], zegar Tobii."""
         if not self.collecting:
             return
+        self.n_total += 1
             
         left_valid = gaze_data['left_gaze_point_validity']
         right_valid = gaze_data['right_gaze_point_validity']
@@ -162,6 +159,8 @@ class GazeCollector:
             
             avg_x = np.mean(x_coords)
             avg_y = np.mean(y_coords)
+            if not (np.isfinite(avg_x) and np.isfinite(avg_y)):
+                return
             timestamp = gaze_data['system_time_stamp'] / 1000000.0
             
             self.gaze_data.append({
@@ -173,6 +172,7 @@ class GazeCollector:
     def start(self):
         """Start zbierania"""
         self.gaze_data = []
+        self.n_total = 0
         self.collecting = True
     
     def stop(self):
@@ -505,12 +505,15 @@ def generate_search_display(win, condition_type, target_spec, set_size=SET_SIZE)
 # ============================================================================
 def check_correct_response(gaze_data, target_pos, space_time, screen_width, screen_height):
     """
-    Sprawdza czy SPACE została naciśnięta gdy oko patrzyło na target
-    
-    Returns: True jeśli poprawne, False jeśli nie
+    Czy w oknie CORRECT_RESPONSE_WINDOW przed SPACE wzrok był na targecie.
+    gaze_data[i]['timestamp'] i space_time MUSZĄ być w tym samym zegarze
+    (tu: sekundy od pojawienia się planszy).
+
+    Returns: True / False, albo None gdy w oknie nie ma żadnych ważnych próbek
+    (nie da się zweryfikować odpowiedzi).
     """
     if len(gaze_data) == 0:
-        return False
+        return None
     
     # Sprawdź ostatnie 0.5s przed naciśnięciem SPACE
     target_x_norm = (target_pos[0] + screen_width/2) / screen_width
@@ -521,7 +524,7 @@ def check_correct_response(gaze_data, target_pos, space_time, screen_width, scre
                      if space_time - CORRECT_RESPONSE_WINDOW <= g['timestamp'] <= space_time]
     
     if len(relevant_gaze) == 0:
-        return False
+        return None
     
     # Sprawdź czy którykolwiek punkt był blisko targetu
     for g in relevant_gaze:
@@ -537,18 +540,22 @@ def check_correct_response(gaze_data, target_pos, space_time, screen_width, scre
 # ============================================================================
 # FIND TARGET IN GAZE DATA
 # ============================================================================
-def find_target_fixation(fixations, target_pos, screen_width, screen_height):
+def find_target_fixation(fixations, target_pos, screen_width, screen_height, before_time=None):
     """
-    Znajduje pierwszą fixację na targecie
+    Znajduje pierwszą fixację na targecie (rozpoczętą przed before_time).
+    start_time fixacji jest w sekundach od pojawienia się planszy, więc
+    time_to_target = start_time (a nie czas względem pierwszej fixacji).
     Returns: (fixation_index, time_to_target) lub (None, None)
     """
     target_x = target_pos[0] + screen_width/2
     target_y = screen_height/2 - target_pos[1]
-    
+
     for i, fix in enumerate(fixations):
+        if before_time is not None and fix['start_time'] > before_time:
+            break
         dist = np.sqrt((fix['x'] - target_x)**2 + (fix['y'] - target_y)**2)
         if dist < TARGET_DETECTION_RADIUS:
-            time_to_target = fix['start_time'] - fixations[0]['start_time']
+            time_to_target = max(0.0, fix['start_time'])
             return i, time_to_target
     
     return None, None
@@ -579,7 +586,7 @@ def run_experiment():
             test_data.append(1)
         
         eyetracker.subscribe_to(tr.EYETRACKER_GAZE_DATA, test_callback, as_dictionary=True)
-        core.wait(0.5)
+        core.wait(1.0)  # strumien SDK startuje ~0.3-0.5 s po subscribe_to
         eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, test_callback)
         
         if len(test_data) == 0:
@@ -603,12 +610,22 @@ def run_experiment():
         color='gray',
         allowGUI=False
     )
+    spectrum.install_escape(win)  # ESC przerywa eksperyment w kazdym momencie
     
     # Ukryj kursor
     mouse_obj = mouse.Mouse(win=win, visible=False)
-    
+
+    # Kalibracja Tobii Pro Spectrum (pozycja głowy -> 9 punktów -> podgląd, R = powtórz)
+    if RUN_CALIBRATION:
+        cal_ok = spectrum.calibrate(win, eyetracker, points=spectrum.CAL_POINTS_9)
+        log_debug(f"✓ Kalibracja zakończona (status OK: {cal_ok})")
+
     # Setup gaze collector
     collector = GazeCollector()
+    # Jedna subskrypcja na cala sesje (SDK potrzebuje ~0.4 s na start strumienia,
+    # wiec subskrypcja w kazdej probie gubila poczatek proby). Proby bramkuje start()/stop().
+    eyetracker.subscribe_to(tr.EYETRACKER_GAZE_DATA, collector.callback, as_dictionary=True)
+    spectrum.on_abort(lambda: eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, collector.callback))
     
     # Lista wyników
     all_results = []
@@ -696,9 +713,14 @@ def run_experiment():
     # ========================================================================
     # INITIALIZE CSV FILE FOR REAL-TIME RESULTS
     # ========================================================================
-    csv_headers = ['trial_num', 'instruction_type', 'task_name', 'condition_type', 
-                   'set_size', 'target_found', 'found_time', 'time_to_target', 
-                   'reaction_time', 'num_fixations', 'target_fix_idx']
+    # outcome: HIT = SPACE i wzrok na targecie | FALSE_ALARM = SPACE, wzrok gdzie indziej
+    #          MISS = brak SPACE (timeout) | NO_GAZE = SPACE, brak danych wzroku (niezweryfikowane)
+    csv_headers = ['trial_num', 'instruction_type', 'task_name', 'condition_type',
+                   'set_size', 'response', 'outcome', 'target_found',
+                   'gaze_on_target_at_response', 'target_fixated_before_response',
+                   'found_time', 'time_to_target', 'reaction_time',
+                   'num_fixations', 'target_fix_idx',
+                   'n_gaze_samples', 'valid_gaze_pct', 'target_x', 'target_y']
     
     with open(RESULTS_CSV_FILE, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=csv_headers)
@@ -904,19 +926,15 @@ def run_experiment():
             # ====================================================================
             print(f"👁 Zbieranie danych gaze...")
             
-            try:
-                eyetracker.subscribe_to(tr.EYETRACKER_GAZE_DATA, collector.callback, as_dictionary=True)
-            except Exception as e:
-                print(f"❌ Błąd subskrypcji: {e}")
-                win.close()
-                return
-            
-            collector.start()
+            collector.start()  # subskrypcja jest juz aktywna (patrz wyzej)
             
             # Zapisz start_time dla pomiaru czasu
             start_time = core.getTime()
             found_time = None
-            
+            # Onset i odpowiedź mierzone zegarem Tobii (ten sam co timestamp próbek gaze)
+            onset_sys = None
+            response = 'timeout'
+
             # DEBUG: Sprawdź elementy przed rysowaniem
             target_elements = [e for e in elements if e['is_target']]
             log_debug(f"  🎨 Rozpoczynam rysowanie {len(elements)} elementów (w tym {len(target_elements)} target)")
@@ -929,56 +947,72 @@ def run_experiment():
                     elem['stim'].draw()
                 
                 win.flip()
-                
+                if onset_sys is None:
+                    onset_sys = tr.get_system_time_stamp() / 1e6  # plansza na ekranie
+
                 keys = event.getKeys()
                 if 'space' in keys:
-                    found_time = core.getTime() - start_time
+                    found_time = tr.get_system_time_stamp() / 1e6 - onset_sys
+                    response = 'space'
                     print(f"✓ Użytkownik nacisnął SPACJĘ po {found_time:.2f}s")
                     break
                 if 'escape' in keys:
-                    collector.stop()
-                    try:
-                        eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, collector.callback)
-                    except:
-                        pass
-                    win.close()
-                    core.quit()
+                    spectrum.abort()
             
-            gaze_data = collector.stop()
-            try:
-                eyetracker.unsubscribe_from(tr.EYETRACKER_GAZE_DATA, collector.callback)
-            except Exception as e:
-                print(f"⚠ Ostrzeżenie przy unsubscribe: {e}")
-            
+            n_total_samples = collector.n_total
+            raw_gaze = list(collector.stop())
+
             if found_time is None:
                 found_time = SEARCH_DURATION
                 print("⏱ Timeout - nie znaleziono w czasie")
-            
-            print(f"✓ Zebrano {len(gaze_data)} punktów gaze")
-            
+
+            # Wszystkie czasy -> sekundy od pojawienia się planszy (jeden zegar: Tobii)
+            gaze_data = [dict(g, timestamp=g['timestamp'] - onset_sys) for g in raw_gaze
+                         if onset_sys is not None and g['timestamp'] >= onset_sys]
+            valid_pct = 100.0 * len(raw_gaze) / n_total_samples if n_total_samples else 0.0
+            print(f"✓ Zebrano {len(gaze_data)} ważnych punktów gaze ({valid_pct:.0f}% próbek ważnych)")
             if len(gaze_data) == 0:
-                print("⚠ BRAK DANYCH - pomijam")
-                continue
-            
-            # Oblicz fixacje
+                print("⚠ BRAK DANYCH WZROKU - próba zostanie zapisana jako niezweryfikowana")
+
+            # Oblicz fixacje (start_time w sekundach od onsetu)
             print(f"🔍 Obliczam fixacje...")
             fixations = detect_fixations(gaze_data, SCREEN_WIDTH, SCREEN_HEIGHT)
             print(f"✓ Znaleziono {len(fixations)} fixacji")
-            
-            # Znajdź pierwszą fixację na targecie
-            target_fix_idx, time_to_target = find_target_fixation(fixations, target_pos, SCREEN_WIDTH, SCREEN_HEIGHT)
-            
-            # Walidacja: JEŚLI była fixacja na targecie = SUKCES
-            # Czas reakcji (found_time - time_to_target) jest mierzony ale nie dyskwalifikuje
-            if target_fix_idx is not None:
-                is_correct = True
-                reaction_time = found_time - time_to_target
-                print(f"✓ TRAFIONY - fixacja #{target_fix_idx+1} po {time_to_target:.2f}s, SPACE po {found_time:.2f}s (RT: {reaction_time:.2f}s)")
+
+            # Pierwsza fixacja na targecie PRZED odpowiedzią
+            target_fix_idx, time_to_target = find_target_fixation(
+                fixations, target_pos, SCREEN_WIDTH, SCREEN_HEIGHT, before_time=found_time)
+
+            # Klasyfikacja odpowiedzi (wcześniej każda fixacja na targecie = sukces,
+            # nawet bez SPACE albo przy SPACE patrząc na inny obiekt -> fałszywe trafienia)
+            gaze_at_resp = None
+            if response == 'space':
+                gaze_at_resp = check_correct_response(gaze_data, target_pos, found_time,
+                                                      SCREEN_WIDTH, SCREEN_HEIGHT)
+                if gaze_at_resp is None:
+                    outcome = 'NO_GAZE'
+                elif gaze_at_resp:
+                    outcome = 'HIT'
+                else:
+                    outcome = 'FALSE_ALARM'
             else:
-                is_correct = False
-                reaction_time = None
-                print(f"❌ NIETRAFIONY - brak fixacji na targecie, SPACE po {found_time:.2f}s")
-            
+                outcome = 'MISS'
+            is_correct = outcome == 'HIT'
+
+            # Czas decyzji: od pierwszej fixacji na targecie do SPACE (tylko dla HIT)
+            reaction_time = (found_time - time_to_target) if (is_correct and time_to_target is not None) else None
+
+            if outcome == 'HIT':
+                tt = f"{time_to_target:.2f}s" if time_to_target is not None else "brak fixacji ≥80 ms"
+                print(f"✓ HIT - target po {tt}, SPACE po {found_time:.2f}s")
+            elif outcome == 'FALSE_ALARM':
+                print(f"❌ FALSE ALARM - SPACE po {found_time:.2f}s, wzrok nie był na targecie")
+            elif outcome == 'NO_GAZE':
+                print(f"⚠ NO_GAZE - SPACE po {found_time:.2f}s, brak danych wzroku do weryfikacji")
+            else:
+                print(f"❌ MISS - brak odpowiedzi w {SEARCH_DURATION:.0f}s"
+                      + (" (target był fiksowany)" if target_fix_idx is not None else ""))
+
             # ====================================================================
             # ZAPISZ WYNIKI - PRZED SCANPATH (prevent data loss!)
             # ====================================================================
@@ -990,9 +1024,11 @@ def run_experiment():
                 'instruction_type': condition.get('instruction_type', 'text'),
                 'num_fixations': len(fixations),
                 'found_time': found_time,
-                'time_to_target': time_to_target if time_to_target is not None else found_time,
+                'time_to_target': time_to_target,  # None = brak fixacji na targecie (nie wpisujemy found_time!)
                 'reaction_time': reaction_time,
                 'is_correct': is_correct,
+                'outcome': outcome,
+                'response': response,
                 'target_fix_idx': target_fix_idx
             }
             all_results.append(trial_result)
@@ -1007,12 +1043,20 @@ def run_experiment():
                         'task_name': trial_result['name'],
                         'condition_type': trial_result['type'],
                         'set_size': trial_result['set_size'],
+                        'response': response,
+                        'outcome': outcome,
                         'target_found': trial_result['is_correct'],
+                        'gaze_on_target_at_response': 'N/A' if gaze_at_resp is None else gaze_at_resp,
+                        'target_fixated_before_response': target_fix_idx is not None,
                         'found_time': f"{trial_result['found_time']:.3f}",
-                        'time_to_target': f"{trial_result['time_to_target']:.3f}",
-                        'reaction_time': f"{trial_result['reaction_time']:.3f}" if trial_result['reaction_time'] else 'N/A',
+                        'time_to_target': f"{time_to_target:.3f}" if time_to_target is not None else 'N/A',
+                        'reaction_time': f"{reaction_time:.3f}" if reaction_time is not None else 'N/A',
                         'num_fixations': trial_result['num_fixations'],
-                        'target_fix_idx': trial_result['target_fix_idx'] if trial_result['target_fix_idx'] is not None else 'N/A'
+                        'target_fix_idx': target_fix_idx if target_fix_idx is not None else 'N/A',
+                        'n_gaze_samples': len(gaze_data),
+                        'valid_gaze_pct': f"{valid_pct:.1f}",
+                        'target_x': f"{target_pos[0]:.0f}",
+                        'target_y': f"{target_pos[1]:.0f}",
                     })
                 log_debug(f"✓ Saved trial {trial_num} to CSV")
             except Exception as csv_error:
@@ -1106,20 +1150,22 @@ def run_experiment():
                     number.draw()
             
             # Info z wynikami
-            if target_fix_idx is not None and is_correct:
-                result_text = f"✓ POPRAWNE!\n" \
-                             f"Fixacja #{target_fix_idx+1} po {time_to_target:.2f}s\n" \
-                             f"(SPACE naciśnięte po {found_time:.2f}s)"
+            if outcome == 'HIT':
+                tt = f"Fixacja #{target_fix_idx+1} po {time_to_target:.2f}s\n" if target_fix_idx is not None else ""
+                result_text = f"✓ POPRAWNE!\n{tt}(SPACE naciśnięte po {found_time:.2f}s, wzrok na targecie)"
                 result_color = 'lightgreen'
-            elif target_fix_idx is not None and not is_correct:
-                result_text = f"❌ BŁĄD!\n" \
-                             f"Target w fixacji #{target_fix_idx+1} po {time_to_target:.2f}s\n" \
-                             f"Ale SPACE naciśnięte bez patrzenia na target ({found_time:.2f}s)"
+            elif outcome == 'FALSE_ALARM':
+                seen = (f"Target był w fixacji #{target_fix_idx+1} po {time_to_target:.2f}s, ale\n"
+                        if target_fix_idx is not None else "")
+                result_text = f"❌ FAŁSZYWY ALARM!\n{seen}SPACE naciśnięte bez patrzenia na target ({found_time:.2f}s)"
                 result_color = 'salmon'
+            elif outcome == 'NO_GAZE':
+                result_text = f"⚠ BRAK DANYCH WZROKU\nSPACE po {found_time:.2f}s - nie da się sprawdzić"
+                result_color = 'orange'
             else:
-                result_text = f"❌ BŁĄD!\n" \
-                             f"Czas: {found_time:.2f}s\n" \
-                             f"Target nie znaleziony"
+                seen = (f"Target był w fixacji #{target_fix_idx+1}, ale nie rozpoznany\n"
+                        if target_fix_idx is not None else "")
+                result_text = f"❌ CZAS MINĄŁ ({SEARCH_DURATION:.0f}s)\n{seen}Brak odpowiedzi"
                 result_color = 'salmon'
             
             info = visual.TextStim(
@@ -1154,6 +1200,8 @@ def run_experiment():
     # PODSUMOWANIE - WYKRES WYNIKÓW
     # ========================================================================
     log_debug(f"\n✓ Zakończono {len(conditions)} trials!")
+    for oc in ('HIT', 'FALSE_ALARM', 'MISS', 'NO_GAZE'):
+        log_debug(f"  {oc}: {sum(1 for r in all_results if r.get('outcome') == oc)}")
     log_debug(f"All results collected: {len(all_results)} items")
     
     # Verify data integrity

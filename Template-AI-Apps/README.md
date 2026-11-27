@@ -1,9 +1,9 @@
 # Tworzenie aplikacji w `Template-AI-Apps`
 
-Ten katalog jest wspólnym miejscem dla aplikacji warsztatowych. Każda aplikacja
-ma własny podkatalog, własny skrypt startowy i — gdy potrzebuje dodatkowych
-bibliotek — opisane zależności. Wspólne pliki PsychoPy i SDK Tobii znajdują się
-obok podkatalogów aplikacji.
+Ten katalog jest wspólnym miejscem dla aplikacji warsztatowych przygotowanych
+dla Tobii Pro Spectrum. Każda aplikacja ma własny podkatalog i skrypt startowy.
+Wspólne środowisko PsychoPy oraz integrację z Tobii Pro SDK udostępnia
+`spectrum.py`.
 
 ## Struktura
 
@@ -11,9 +11,8 @@ obok podkatalogów aplikacji.
 Template-AI-Apps/
 ├── PsychoPy/                         # opcjonalne środowisko PsychoPy dla Windows
 │   └── python.exe
-├── x3-120 SDK/
-│   ├── 32/                           # SDK 32-bit, gdy wymaga go konfiguracja
-│   └── 64/                           # SDK 64-bit używane przez główny szablon
+├── spectrum.py                       # wspólne wyszukiwanie, kalibracja i strumień gaze
+├── setup_bundle.bat                  # przygotowanie Pythona, PsychoPy i Tobii Pro SDK
 ├── requirements-students.txt         # wspólne zależności aplikacji warsztatowych
 ├── install_deps.bat                  # instalacja zależności na Windows
 ├── install_deps.sh                   # instalacja zależności na Linux/macOS
@@ -32,7 +31,7 @@ Template-AI-Apps/
 
 Nową aplikację dodaj jako **podkatalog bezpośrednio w `Template-AI-Apps`**,
 obok `AI Template App` i pozostałych `App N - ...`. Nie umieszczaj jej wewnątrz
-folderu `PsychoPy` ani `x3-120 SDK`.
+folderu `PsychoPy`.
 
 ## Pliki nowej aplikacji
 
@@ -98,19 +97,22 @@ Na Windows:
    w tym interpreterze.
 3. Uruchom launcher aplikacji, np. `run_app7.bat`.
 
-## Ścieżka do SDK Tobii X3-120
+## Sprzęt i SDK Tobii Pro Spectrum
 
-W głównym szablonie `AI Template App/ai_template_app.py` katalog SDK jest
-wyznaczany względem pliku programu:
+Wszystkie aplikacje sprzętowe korzystają z Tobii Pro Spectrum i oficjalnego
+pakietu Tobii Pro SDK `tobii-research==2.1.0`, instalowanego w 64-bitowym
+środowisku PsychoPy przez `setup_bundle.bat`. Nie kopiuj starego SDK do katalogu
+aplikacji — aktualny szablon korzysta z pakietu Tobii Pro SDK w tym środowisku.
 
-```text
-Template-AI-Apps/x3-120 SDK/64
-```
+W nowych aplikacjach wzoruj się na `AI Template App/ai_template_app.py`:
+używaj `import tobii_research as tr` oraz wspólnego modułu `spectrum.py`
+do wykrywania trackera, kalibracji, strumienia próbek i bezpiecznego kończenia
+eksperymentu. Nie implementuj ponownie obsługi sprzętu ani nie zakładaj
+zgodności z innym SDK. Test sprzętowy wykonuj na stanowisku z Tobii Pro
+Spectrum i Tobii Pro Eye Tracker Manager.
 
-Zachowaj tę strukturę podczas dodawania aplikacji korzystającej z SDK. Dla
-innego układu bitowości użyj właściwego folderu SDK i sprawdź zgodność z
-interpreterem, zainstalowanym sterownikiem oraz urządzeniem na stanowisku.
-Samo znalezienie modułu SDK nie potwierdza połączenia z eye-trackerem.
+`DEV_MODE` aplikacji może symulować wzrok myszą, ale nie potwierdza to
+poprawności połączenia z eye-trackerem ani integracji SDK.
 
 ## Wyniki i pliki lokalne
 

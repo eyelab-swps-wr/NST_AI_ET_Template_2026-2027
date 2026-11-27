@@ -14,7 +14,7 @@ Co daje / what it provides:
                             probek niewaznych/NaN i przeterminowanych
 
 Czestotliwosc / sampling rate:
-    domyslnie 120 Hz (tak jak X3-120, wiec progi w aplikacjach dzialaja bez zmian).
+    domyslnie 120 Hz; czestotliwosc mozna zmienic zmienna SPECTRUM_HZ.
     Zmiana: zmienna srodowiskowa SPECTRUM_HZ, np.  set SPECTRUM_HZ=600
 """
 import math

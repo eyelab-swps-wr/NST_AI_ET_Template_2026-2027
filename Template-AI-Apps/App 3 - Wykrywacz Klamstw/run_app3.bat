@@ -1,13 +1,14 @@
 @echo off
+rem Uruchamia aplikacje bundlowanym Pythonem PsychoPy (Template-AI-Apps\PsychoPy)
 cd /d "%~dp0"
-if exist "..\PsychoPy\python.exe" (
-  "..\PsychoPy\python.exe" app3_wykrywacz_klamstw.py
-) else (
-  where py >nul 2>nul
-  if %errorlevel%==0 (
-    py -3 app3_wykrywacz_klamstw.py
-  ) else (
-    python app3_wykrywacz_klamstw.py
-  )
+set "PYTHONUTF8=1"
+set "PYTHON_EXE=%~dp0..\PsychoPy\python.exe"
+if defined PSYCHOPY_PYTHON set "PYTHON_EXE=%PSYCHOPY_PYTHON%"
+if not exist "%PYTHON_EXE%" (
+  echo Brak bundlowanego Pythona: %PYTHON_EXE%
+  echo Uruchom najpierw ..\setup_bundle.bat
+  pause
+  exit /b 1
 )
+"%PYTHON_EXE%" app3_wykrywacz_klamstw.py
 pause

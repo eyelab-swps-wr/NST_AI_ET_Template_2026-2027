@@ -1,18 +1,19 @@
-# Interaktywny brief replikacji dla AI — Tobii X120
+# Interaktywny brief replikacji dla AI — Tobii Pro Spectrum
 
-[Otwórz plik formularza w repozytorium](./brief-replikacja-tobii-x120.html).
+[Otwórz plik formularza w repozytorium](./brief-replikacja-tobii-pro-spectrum.html).
 GitHub pokazuje pod tym linkiem kod HTML, a nie działający formularz.
 
 ## Uruchomienie bez instalacji
 
-1. Otwórz plik `brief-replikacja-tobii-x120.html` w repozytorium.
+1. Otwórz plik `brief-replikacja-tobii-pro-spectrum.html` w repozytorium.
 2. Pobierz go przyciskiem **Download raw file**. Zachowaj rozszerzenie `.html`.
 3. Otwórz pobrany plik w aktualnej przeglądarce, np. Chrome, Edge, Firefox lub Safari.
 4. Wypełnij kartę zespołu. Sprawdź komunikat o zapisie lokalnym.
 
 Formularz jest samodzielny, działa offline i nie wymaga Pythona, SDK ani serwera.
 Nie łączy się z eye-trackerem. Służy do przygotowania protokołu i briefu.
-Obsługę Tobii X120 trzeba osobno potwierdzić dla wersji SDK i środowiska laboratorium.
+Brief dotyczy Tobii Pro Spectrum. Aplikacje sprzętowe w tym repozytorium
+korzystają z Tobii Pro SDK 2.1.0 i wspólnego modułu `Template-AI-Apps/spectrum.py`.
 
 ## Zapis, praca zespołowa i eksport
 
@@ -42,11 +43,11 @@ pobrany plik działa również bez niej.
 3. Wybierz **Source: Deploy from a branch**, gałąź **main** i katalog **/ (root)**.
 4. Zapisz ustawienia i poczekaj na zakończenie wdrożenia `pages-build-deployment`.
 5. Otwórz adres wdrożenia wskazany w ustawieniach Pages, dopisując
-   `/brief-replikacja-tobii-x120.html`.
+   `/brief-replikacja-tobii-pro-spectrum.html`.
 
-Dla repozytorium źródłowego, bez własnej domeny, oczekiwany adres po wdrożeniu to:
+Oczekiwany adres po wdrożeniu repozytorium NST to:
 
-https://eyelab-swps-wr.github.io/ST_AI_ET_Template_2026-2027/brief-replikacja-tobii-x120.html
+https://eyelab-swps-wr.github.io/NST_AI_ET_Template_2026-2027/brief-replikacja-tobii-pro-spectrum.html
 
 To adres docelowy, nie potwierdzenie aktywnej publikacji. Nie jest wymagany
 `index.html`, jeżeli użytkownicy otwierają pełny adres pliku. Dla forka użyj
